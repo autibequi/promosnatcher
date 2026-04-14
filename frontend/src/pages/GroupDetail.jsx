@@ -164,7 +164,7 @@ export default function GroupDetail() {
                 <p className="text-xs text-gray-500">Nenhum grupo com prefixo encontrado.</p>
               )}
               <div className="max-h-48 overflow-y-auto space-y-1">
-                {waGroups.map(g => (
+                {waGroups.filter(g => !linkedIds.includes(g.id)).map(g => (
                   <button key={g.id}
                     onClick={() => linkGroup.mutate(g.id)}
                     disabled={linkGroup.isPending}
