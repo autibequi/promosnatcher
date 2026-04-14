@@ -191,6 +191,13 @@ class WAHAAdapter(WhatsAppAdapter):
             logger.error(f"WAHA start_session: {e}")
             return False
 
+    @staticmethod
+    def _jid_str(raw) -> str:
+        """Extrai string JID — NOWEB retorna string, WEBJS retorna {_serialized, ...}."""
+        if isinstance(raw, dict):
+            return raw.get("_serialized") or raw.get("user", "")
+        return str(raw) if raw else ""
+
     async def list_groups(self) -> list[dict]:
         """Lista todos os grupos onde o bot está membro."""
         url = f"{self.base_url}/api/{self.session}/groups"
@@ -200,13 +207,11 @@ class WAHAAdapter(WhatsAppAdapter):
             if r.status_code == 200:
                 data = r.json()
                 results = []
-                # WAHA retorna dict {jid: {id, subject, size, participants, ...}}
-                # OU lista de objetos dependendo da versão
                 items = data.values() if isinstance(data, dict) else data
                 for g in items:
                     if isinstance(g, str):
-                        continue  # pula strings avulsas
-                    gid = g.get("id", "")
+                        continue
+                    gid = self._jid_str(g.get("id", ""))
                     name = g.get("subject") or g.get("name") or "Sem nome"
                     size = g.get("size") or len(g.get("participants", []))
                     if gid:
