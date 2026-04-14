@@ -7,7 +7,7 @@ FRONTEND_URL := http://localhost:6060
 .DEFAULT_GOAL := help
 
 .PHONY: help up down build restart logs logs-backend logs-frontend \
-        shell ps clean test scan status
+        shell ps clean test scan status fix-network
 
 help: ## Mostra este help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*##"}{printf "\033[36m%-18s\033[0m %s\n",$$1,$$2}'
@@ -97,3 +97,17 @@ clean: ## Remove containers, imagens e volume de dados (DESTRUTIVO)
 
 clean-containers: ## Remove só os containers (mantém imagens e dados)
 	$(COMPOSE) down --remove-orphans
+
+fix-network: ## Reaplica aliases DNS da rede Podman (rodar se 502 aparecer)
+	@python3 -c "\
+import docker, time; \
+c = docker.DockerClient(base_url='unix:///run/user/host/podman/podman.sock'); \
+net = c.networks.get('promo-hunter'); \
+aliases = {'promo-hunter-backend':'backend','promo-hunter-evolution':'evolution','promo-hunter-postgres':'postgres','promo-hunter-redis':'redis'}; \
+[([net.disconnect(c.containers.get(n), force=True) if True else None, net.connect(c.containers.get(n), aliases=[a])] if c.containers.get(n) else None) for n,a in aliases.items() if c.containers.get(n) is not None]; \
+fe = c.containers.get('promo-hunter-frontend'); \
+[net.disconnect(fe, force=True), net.connect(fe), fe.exec_run('nginx -s reload')]; \
+print('Aliases reconfigurados')"; \
+	@echo "Testando..."
+	@curl -sf $(BACKEND_URL)/api/health > /dev/null && echo "Backend: OK" || echo "Backend: OFFLINE"
+	@curl -sf http://localhost:6060/api/health > /dev/null && echo "Nginx proxy: OK" || echo "Nginx proxy: FAIL"
