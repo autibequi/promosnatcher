@@ -1,21 +1,32 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: '/api' })
+// Cria instância já com o token atual (se existir)
+const getToken = () => localStorage.getItem('ph_token')
 
-// Injeta token JWT em todas as requests
+const api = axios.create({
+  baseURL: '/api',
+  headers: { Authorization: getToken() ? `Bearer ${getToken()}` : undefined },
+})
+
+// Atualiza token em cada request (refresh automático)
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('ph_token')
+  const token = getToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
+  else delete config.headers.Authorization
   return config
 })
 
-// Remove token e força re-login em 401
+// Remove token e força re-login em 401 — exceto endpoints WAHA (falha silenciosa)
 api.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('ph_token')
-      window.location.href = '/'
+      const url = err.config?.url || ''
+      const isWAHA = url.includes('/wa/') || url.includes('/config/wa')
+      if (!isWAHA) {
+        localStorage.removeItem('ph_token')
+        window.location.href = '/'
+      }
     }
     return Promise.reject(err)
   }
