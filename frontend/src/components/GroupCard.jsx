@@ -76,6 +76,22 @@ export default function GroupCard({ group }) {
         </span>
       </div>
 
+      {/* Status WA */}
+      {group.whatsapp_group_id ? (
+        <span className={`text-xs flex items-center gap-1 ${
+          group.wa_group_status === 'removed' ? 'text-red-400' :
+          group.wa_group_status === 'ok' ? 'text-green-400' : 'text-gray-500'
+        }`}>
+          {group.wa_group_status === 'removed'
+            ? '⚠️ Removido do grupo WA'
+            : group.wa_group_status === 'ok'
+            ? '📱 WA vinculado'
+            : `📱 ${group.whatsapp_group_id.slice(0, 20)}...`}
+        </span>
+      ) : (
+        <span className="text-xs text-gray-600">📵 Sem grupo WA</span>
+      )}
+
       {/* Status do último scan */}
       <ScanBadge groupId={group.id} />
 

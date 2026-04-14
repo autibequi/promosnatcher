@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getGroup, getProducts, deleteGroup } from '../api'
+import { getGroup, getProducts, deleteGroup, createWAGroup } from '../api'
 import ScanStatus from '../components/ScanStatus'
 import ProductCard from '../components/ProductCard'
 
@@ -30,6 +30,11 @@ export default function GroupDetail() {
   const del = useMutation({
     mutationFn: () => deleteGroup(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['groups'] }); navigate('/') },
+  })
+
+  const createWA = useMutation({
+    mutationFn: () => createWAGroup(id, []),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['group', id] }),
   })
 
   if (loadingGroup) return <div className="text-center text-gray-400 py-16">Carregando...</div>
@@ -78,9 +83,27 @@ export default function GroupDetail() {
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <p className="text-xs text-gray-500 mb-1">WhatsApp Group ID</p>
-          <p className="text-sm text-white font-mono break-all">
-            {group.whatsapp_group_id || <span className="text-gray-600">Não vinculado</span>}
-          </p>
+          {group.whatsapp_group_id ? (
+            <p className={`text-xs font-mono break-all ${
+              group.wa_group_status === 'removed' ? 'text-red-400' : 'text-green-400'
+            }`}>
+              {group.wa_group_status === 'removed' ? '⚠️ Removido — ' : ''}
+              {group.whatsapp_group_id}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2 mt-1">
+              <span className="text-sm text-gray-600">Não vinculado</span>
+              <button
+                onClick={() => createWA.mutate()}
+                disabled={createWA.isPending}
+                className="text-xs bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {createWA.isPending ? '⏳ Criando...' : '📱 Criar grupo WA'}
+              </button>
+              {createWA.isSuccess && <span className="text-xs text-green-400">✓ Grupo criado!</span>}
+              {createWA.isError && <span className="text-xs text-red-400">✗ Erro ao criar</span>}
+            </div>
+          )}
         </div>
       </div>
 
