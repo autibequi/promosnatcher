@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getConfig, updateConfig, testWA, getWAGroups, createWAGroupDirect,
+import { getConfig, updateConfig, testWA,
          getWAStatus, startWASession, logoutWASession } from '../api'
 
 export default function Settings() {
@@ -22,8 +22,6 @@ export default function Settings() {
     wa_group_prefix: 'Snatcher',
     alert_phone: '',
   })
-  const [newGroupName, setNewGroupName] = useState('')
-
   useEffect(() => {
     if (config) {
       setForm({
@@ -54,21 +52,6 @@ export default function Settings() {
     refetchInterval: 5000,
   })
 
-  // Grupos WA
-  const { data: waGroups = [], isLoading: loadingGroups, refetch: refetchGroups } = useQuery({
-    queryKey: ['waGroups'],
-    queryFn: getWAGroups,
-    staleTime: 60000,
-    enabled: waStatus?.status === 'WORKING',
-  })
-
-  const createGroup = useMutation({
-    mutationFn: createWAGroupDirect,
-    onSuccess: () => {
-      setNewGroupName('')
-      refetchGroups()
-    },
-  })
 
   const startSession = useMutation({
     mutationFn: startWASession,
@@ -171,79 +154,12 @@ export default function Settings() {
             </button>
           )}
 
-          {/* Gestão de grupos — só quando WORKING */}
+          {/* Link para gestão de grupos */}
           {waStatus?.status === 'WORKING' && (
-            <div className="space-y-3 pt-2 border-t border-gray-800">
-              <div className="flex items-center justify-between">
-                {/* Prefixo */}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-400 whitespace-nowrap">Prefixo:</label>
-                  <input
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-green-500"
-                    value={form.wa_group_prefix}
-                    onChange={e => setForm(f => ({ ...f, wa_group_prefix: e.target.value }))}
-                    placeholder="Snatcher"
-                  />
-                  <span className="text-xs text-gray-500 font-mono whitespace-nowrap">
-                    → {form.wa_group_prefix || '…'} - Nome
-                  </span>
-                </div>
-                <p className="text-sm font-medium text-gray-300">Grupos WhatsApp</p>
-                <button type="button" onClick={() => refetchGroups()}
-                  className="text-xs text-gray-400 hover:text-white transition-colors">
-                  🔄 Atualizar
-                </button>
-              </div>
-
-              {/* Criar novo grupo */}
-              <div className="flex gap-2">
-                <input className={`${field} flex-1`}
-                  placeholder={form.wa_group_prefix ? `ex: Whey Barato` : 'Nome do grupo'}
-                  value={newGroupName}
-                  onChange={e => setNewGroupName(e.target.value)} />
-                <button type="button"
-                  onClick={() => createGroup.mutate(newGroupName)}
-                  disabled={!newGroupName.trim() || createGroup.isPending}
-                  className="bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg whitespace-nowrap transition-colors">
-                  {createGroup.isPending ? '⏳' : '+ Criar'}
-                </button>
-              </div>
-              {createGroup.isSuccess && (
-                <p className="text-xs text-green-400">✓ Grupo criado! Clique Atualizar para ver.</p>
-              )}
-              {createGroup.isError && (
-                <p className="text-xs text-red-400">
-                  ✗ {createGroup.error?.response?.data?.detail || 'Erro ao criar grupo'}
-                </p>
-              )}
-
-              {/* Lista de grupos */}
-              {loadingGroups && <p className="text-xs text-gray-500">Carregando grupos...</p>}
-              {!loadingGroups && waGroups.length === 0 && (
-                <p className="text-xs text-gray-500">Nenhum grupo encontrado. Crie um acima ou pelo WhatsApp.</p>
-              )}
-              <div className="space-y-1 max-h-56 overflow-y-auto">
-                {waGroups.map(g => (
-                  <div key={g.id}
-                    className="flex items-center justify-between bg-gray-800 px-3 py-2 rounded-lg">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-white truncate">{g.name}</p>
-                      <p className="text-xs text-gray-500 font-mono truncate">{g.id}</p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                      {g.size > 0 && (
-                        <span className="text-xs text-gray-500">{g.size}👤</span>
-                      )}
-                      <button type="button"
-                        onClick={() => { navigator.clipboard.writeText(g.id); }}
-                        className="text-gray-400 hover:text-green-400 transition-colors text-sm"
-                        title="Copiar Group ID">
-                        📋
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="pt-2 border-t border-gray-800">
+              <a href="/admin/whatsapp" className="text-xs text-green-400 hover:text-green-300 transition-colors">
+                📱 Gerenciar grupos WhatsApp →
+              </a>
             </div>
           )}
         </div>

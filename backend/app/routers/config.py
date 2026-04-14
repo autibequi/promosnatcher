@@ -157,6 +157,11 @@ class WAGroupCreate(BaseModel):
     name: str
 
 
+class WAGroupUpdate(BaseModel):
+    subject: str | None = None
+    description: str | None = None
+
+
 @router.post("/wa/groups")
 async def create_wa_group_via_config(
     body: WAGroupCreate,
@@ -174,10 +179,56 @@ async def create_wa_group_via_config(
 
     wa_id = await adapter.create_group(full_name, [])
     if wa_id:
+        # Busca invite link imediatamente
+        invite = await adapter.get_invite_link(wa_id)
         logger.info(f"Grupo WA criado: {wa_id} ({full_name})")
-        return {"message": f"Grupo '{full_name}' criado", "group_id": wa_id}
+        return {"message": f"Grupo '{full_name}' criado", "group_id": wa_id, "invite_link": invite}
 
     raise HTTPException(422, f"Falha ao criar grupo WA '{full_name}'. Verifique os logs do WAHA.")
+
+
+@router.get("/wa/groups/{group_id}/invite")
+async def get_wa_group_invite(group_id: str, session: Session = Depends(get_session)):
+    """Busca invite link de um grupo WA."""
+    config = _get_or_create_config(session)
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
+                          config.wa_api_key or "", config.wa_instance or "")
+    if not adapter:
+        raise HTTPException(400, "WhatsApp não configurado")
+    link = await adapter.get_invite_link(group_id)
+    if link:
+        return {"invite_link": link}
+    raise HTTPException(422, "Não foi possível obter o invite link")
+
+
+@router.put("/wa/groups/{group_id}")
+async def update_wa_group(group_id: str, body: WAGroupUpdate, session: Session = Depends(get_session)):
+    """Atualiza subject e/ou description de um grupo WA."""
+    config = _get_or_create_config(session)
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
+                          config.wa_api_key or "", config.wa_instance or "")
+    if not adapter:
+        raise HTTPException(400, "WhatsApp não configurado")
+    results = {}
+    if body.subject is not None:
+        results["subject"] = await adapter._set_group_subject(group_id, body.subject)
+    if body.description is not None:
+        results["description"] = await adapter.set_group_description(group_id, body.description)
+    return results
+
+
+@router.delete("/wa/groups/{group_id}")
+async def leave_wa_group(group_id: str, session: Session = Depends(get_session)):
+    """Sai de um grupo WA."""
+    config = _get_or_create_config(session)
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
+                          config.wa_api_key or "", config.wa_instance or "")
+    if not adapter:
+        raise HTTPException(400, "WhatsApp não configurado")
+    ok = await adapter.leave_group(group_id)
+    if ok:
+        return {"message": "Saiu do grupo"}
+    raise HTTPException(422, "Falha ao sair do grupo")
 
 
 @router.post("/test-wa")

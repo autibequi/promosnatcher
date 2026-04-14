@@ -62,6 +62,9 @@ export const startWASession = () => api.post('/config/wa/session/start').then(r 
 export const logoutWASession = () => api.post('/config/wa/session/logout').then(r => r.data)
 export const getWAGroups = () => api.get('/config/wa/groups').then(r => r.data)
 export const createWAGroupDirect = (name) => api.post('/config/wa/groups', { name }).then(r => r.data)
+export const getWAGroupInvite = (groupId) => api.get(`/config/wa/groups/${encodeURIComponent(groupId)}/invite`).then(r => r.data)
+export const updateWAGroup = (groupId, data) => api.put(`/config/wa/groups/${encodeURIComponent(groupId)}`, data).then(r => r.data)
+export const leaveWAGroup = (groupId) => api.delete(`/config/wa/groups/${encodeURIComponent(groupId)}`).then(r => r.data)
 
 // Analytics
 export const getAnalyticsSummary = (days = 30) =>

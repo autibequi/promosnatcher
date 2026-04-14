@@ -6,6 +6,7 @@ import GroupForm from './pages/GroupForm'
 import GroupDetail from './pages/GroupDetail'
 import Settings from './pages/Settings'
 import Analytics from './pages/Analytics'
+import WAGroups from './pages/WAGroups'
 import Login from './pages/Login'
 
 function AdminNav({ onLogout }) {
@@ -19,6 +20,7 @@ function AdminNav({ onLogout }) {
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
         <span className="text-green-400 font-bold text-lg mr-4">🔥 Promo Snatcher</span>
         <NavLink to="/admin" end className={link}>Canais</NavLink>
+        <NavLink to="/admin/whatsapp" className={link}>Grupos</NavLink>
         <NavLink to="/admin/analytics" className={link}>Analytics</NavLink>
         <NavLink to="/admin/settings" className={link}>Configurações</NavLink>
         <div className="ml-auto">
@@ -89,6 +91,12 @@ export default function App() {
           <RequireAuth>
             <AdminNav onLogout={logout} />
             <main className="max-w-6xl mx-auto px-4 py-8"><Settings /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/whatsapp" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><WAGroups /></main>
           </RequireAuth>
         } />
         <Route path="/admin/analytics" element={

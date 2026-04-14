@@ -217,6 +217,43 @@ class WAHAAdapter(WhatsAppAdapter):
             return raw.get("_serialized") or raw.get("user", "")
         return str(raw) if raw else ""
 
+    async def get_invite_link(self, group_id: str) -> str | None:
+        """Busca invite link do grupo."""
+        url = f"{self.base_url}/api/{self.session}/groups/{group_id}/invite-code"
+        try:
+            async with httpx.AsyncClient(timeout=8) as c:
+                r = await c.get(url, headers=self._headers)
+            if r.status_code == 200:
+                data = r.json()
+                code = data.get("inviteCode") or data.get("code") or data.get("invite_code")
+                return f"https://chat.whatsapp.com/{code}" if code else None
+        except Exception as e:
+            logger.warning(f"WAHA get_invite_link: {e}")
+        return None
+
+    async def set_group_description(self, group_id: str, description: str) -> bool:
+        """Atualiza descrição do grupo WA."""
+        url = f"{self.base_url}/api/{self.session}/groups/{group_id}/description"
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.put(url, json={"description": description},
+                                headers={**self._headers, "Content-Type": "application/json"})
+            return r.status_code == 200
+        except Exception as e:
+            logger.warning(f"WAHA set_group_description: {e}")
+            return False
+
+    async def leave_group(self, group_id: str) -> bool:
+        """Sai do grupo WA."""
+        url = f"{self.base_url}/api/{self.session}/groups/{group_id}/leave"
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.post(url, headers=self._headers)
+            return r.status_code in (200, 201)
+        except Exception as e:
+            logger.warning(f"WAHA leave_group: {e}")
+            return False
+
     async def list_groups(self) -> list[dict]:
         """Lista todos os grupos onde o bot está membro."""
         url = f"{self.base_url}/api/{self.session}/groups"
