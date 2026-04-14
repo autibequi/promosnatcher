@@ -35,6 +35,7 @@ class GroupRead(BaseModel):
     min_val: float
     max_val: float
     whatsapp_group_id: Optional[str]
+    wa_group_status: Optional[str]
     message_template: Optional[str]
     active: bool
     scan_interval: int

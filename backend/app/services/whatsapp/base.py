@@ -13,3 +13,11 @@ class WhatsAppAdapter(ABC):
     @abstractmethod
     async def test_connection(self) -> bool:
         """Verifica se a conexão com o provider está ok."""
+
+    async def check_group(self, group_id: str) -> bool | None:
+        """
+        Verifica se o grupo ainda existe e o bot é membro.
+        Retorna True (ok), False (removido/inexistente), None (erro/inconclusivo).
+        Implementação padrão retorna None — cada adapter pode sobrescrever.
+        """
+        return None

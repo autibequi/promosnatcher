@@ -48,3 +48,16 @@ class ZApiAdapter(WhatsAppAdapter):
                 return resp.status_code == 200
         except Exception:
             return False
+
+    async def check_group(self, group_id: str) -> bool | None:
+        url = f"{self._base}/group-members/{group_id}"
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.get(url)
+            if resp.status_code == 200:
+                return True
+            if resp.status_code in (404, 400):
+                return False
+            return None
+        except Exception:
+            return None

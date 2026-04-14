@@ -94,6 +94,19 @@ async def scan_group(group_id: int):
                     config.wa_api_key or "",
                     config.wa_instance or "",
                 )
+                # Health check: verifica se o bot ainda está no grupo
+                if wa_adapter:
+                    status = await wa_adapter.check_group(group.whatsapp_group_id)
+                    if status is True:
+                        if group.wa_group_status != "ok":
+                            group.wa_group_status = "ok"
+                            session.add(group)
+                    elif status is False:
+                        logger.warning(f"Grupo WA {group.whatsapp_group_id} não encontrado/removido — desabilitando envio")
+                        group.wa_group_status = "removed"
+                        session.add(group)
+                        wa_adapter = None  # não envia mais até o grupo ser revalidado
+                    # status None = inconclusivo, mantém adapter e não altera status
 
             new_count = 0
             for item in all_results:

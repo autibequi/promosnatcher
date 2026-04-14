@@ -17,8 +17,25 @@ def list_groups(session: Session = Depends(get_session)):
 
 
 @router.post("", response_model=GroupRead, status_code=201)
-def create_group(data: GroupCreate, session: Session = Depends(get_session)):
+async def create_group(data: GroupCreate, session: Session = Depends(get_session)):
     group = Group(**data.model_dump())
+
+    # Auto-cria grupo no WhatsApp se WA está configurado e nenhum ID foi fornecido
+    if not group.whatsapp_group_id:
+        config = session.get(AppConfig, 1)
+        if config and config.wa_api_key:
+            adapter = get_adapter(
+                config.wa_provider,
+                config.wa_base_url or "",
+                config.wa_api_key or "",
+                config.wa_instance or "",
+            )
+            if adapter:
+                wa_id = await adapter.create_group(group.name, [])
+                if wa_id:
+                    group.whatsapp_group_id = wa_id
+                    group.wa_group_status = "ok"
+
     session.add(group)
     session.commit()
     session.refresh(group)

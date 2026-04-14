@@ -48,3 +48,22 @@ class EvolutionAdapter(WhatsAppAdapter):
                 return resp.status_code == 200
         except Exception:
             return False
+
+    async def check_group(self, group_id: str) -> bool | None:
+        """Verifica se o grupo existe e o bot ainda é membro."""
+        url = f"{self.base_url}/group/findGroupInfos/{self.instance}"
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.get(
+                    url,
+                    params={"groupJid": group_id},
+                    headers=self._headers,
+                )
+            if resp.status_code == 200:
+                return True
+            if resp.status_code in (404, 400):
+                return False
+            return None
+        except Exception as e:
+            logger.warning(f"Evolution check_group error: {e}")
+            return None

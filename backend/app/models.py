@@ -11,6 +11,7 @@ class Group(SQLModel, table=True):
     min_val: float
     max_val: float
     whatsapp_group_id: Optional[str] = None
+    wa_group_status: Optional[str] = None  # ok | removed | not_found | unchecked
     message_template: Optional[str] = None
     active: bool = True
     scan_interval: int = 30  # minutes
