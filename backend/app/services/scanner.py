@@ -65,7 +65,11 @@ async def scan_group(group_id: int):
 
         try:
             ml_results = await mercadolivre.search(
-                group.search_prompt, group.min_val, group.max_val
+                group.search_prompt,
+                group.min_val,
+                group.max_val,
+                client_id=config.ml_client_id if config else None,
+                client_secret=config.ml_client_secret if config else None,
             )
             amz_results = await amazon.search(
                 group.search_prompt, group.min_val, group.max_val

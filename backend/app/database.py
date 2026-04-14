@@ -22,6 +22,8 @@ def migrate_db():
             'ALTER TABLE "group" ADD COLUMN message_template TEXT',
             'ALTER TABLE appconfig ADD COLUMN send_start_hour INTEGER NOT NULL DEFAULT 8',
             'ALTER TABLE appconfig ADD COLUMN send_end_hour INTEGER NOT NULL DEFAULT 22',
+            'ALTER TABLE appconfig ADD COLUMN ml_client_id TEXT',
+            'ALTER TABLE appconfig ADD COLUMN ml_client_secret TEXT',
         ]:
             try:
                 conn.execute(text(stmt))

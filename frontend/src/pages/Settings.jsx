@@ -13,6 +13,8 @@ export default function Settings() {
     global_interval: 30,
     send_start_hour: 8,
     send_end_hour: 22,
+    ml_client_id: '',
+    ml_client_secret: '',
   })
 
   useEffect(() => {
@@ -25,6 +27,8 @@ export default function Settings() {
         global_interval: config.global_interval || 30,
         send_start_hour: config.send_start_hour ?? 8,
         send_end_hour: config.send_end_hour ?? 22,
+        ml_client_id: config.ml_client_id || '',
+        ml_client_secret: '',
       })
     }
   }, [config])
@@ -44,6 +48,8 @@ export default function Settings() {
       global_interval: parseInt(form.global_interval),
       send_start_hour: parseInt(form.send_start_hour),
       send_end_hour: parseInt(form.send_end_hour),
+      ml_client_id: form.ml_client_id || undefined,
+      ml_client_secret: form.ml_client_secret || undefined,
       wa_api_key: form.wa_api_key || undefined,
     })
   }
@@ -98,6 +104,25 @@ export default function Settings() {
               {test.data.connected ? '✓ Conectado!' : '✗ Falha na conexão'}
             </p>
           )}
+        </div>
+
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-white">Mercado Livre API</h2>
+          <p className="text-xs text-gray-500">
+            Opcional. Cadastre um app em{' '}
+            <span className="text-green-400">developers.mercadolivre.com.br</span>{' '}
+            para usar a API oficial (5000 req/dia, mais estável). Sem credenciais, usa scraping HTML.
+          </p>
+          <div>
+            <label className={label}>Client ID</label>
+            <input className={field} value={form.ml_client_id} onChange={set('ml_client_id')} placeholder="1234567890" />
+          </div>
+          <div>
+            <label className={label}>
+              Client Secret {config?.ml_client_id ? '(configurado — deixe em branco para manter)' : ''}
+            </label>
+            <input className={field} type="password" value={form.ml_client_secret} onChange={set('ml_client_secret')} placeholder="••••••••" />
+          </div>
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">

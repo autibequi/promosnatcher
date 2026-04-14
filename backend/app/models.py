@@ -66,3 +66,5 @@ class AppConfig(SQLModel, table=True):
     global_interval: int = 30
     send_start_hour: int = 8   # hora início envio WA (inclusive), fuso TZ_NAME
     send_end_hour: int = 22    # hora fim envio WA (exclusive)
+    ml_client_id: Optional[str] = None
+    ml_client_secret: Optional[str] = None

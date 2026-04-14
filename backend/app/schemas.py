@@ -80,6 +80,7 @@ class AppConfigRead(BaseModel):
     global_interval: int
     send_start_hour: int
     send_end_hour: int
+    ml_client_id: Optional[str]
 
     class Config:
         from_attributes = True
@@ -93,6 +94,8 @@ class AppConfigUpdate(BaseModel):
     global_interval: Optional[int] = None
     send_start_hour: Optional[int] = None
     send_end_hour: Optional[int] = None
+    ml_client_id: Optional[str] = None
+    ml_client_secret: Optional[str] = None
 
 
 class PriceHistoryRead(BaseModel):
