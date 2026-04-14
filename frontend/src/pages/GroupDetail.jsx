@@ -105,7 +105,7 @@ export default function GroupDetail() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Link to="/admin" className="text-gray-500 hover:text-gray-300 text-sm">← Canais</Link>
@@ -130,7 +130,7 @@ export default function GroupDetail() {
       </div>
 
       {/* Info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <p className="text-xs text-gray-500 mb-1">Busca</p>
           <p className="text-sm text-gray-200 italic">"{group.search_prompt}"</p>
@@ -235,13 +235,13 @@ export default function GroupDetail() {
           <h2 className="text-lg font-semibold text-white">
             Produtos encontrados <span className="text-gray-500 font-normal text-base">({total})</span>
           </h2>
-          <div className="flex gap-2 ml-auto">
+          <div className="flex gap-2 ml-auto flex-wrap">
             <button onClick={() => setSourceFilter('')} className={`${badge} ${!sourceFilter ? active : inactive}`}>Todos</button>
             <button onClick={() => setSourceFilter('mercadolivre')} className={`${badge} ${sourceFilter === 'mercadolivre' ? active : inactive}`}>ML</button>
-            <button onClick={() => setSourceFilter('amazon')} className={`${badge} ${sourceFilter === 'amazon' ? active : inactive}`}>Amazon</button>
-            <span className="w-px bg-gray-700 mx-1" />
+            <button onClick={() => setSourceFilter('amazon')} className={`${badge} ${sourceFilter === 'amazon' ? active : inactive}`}>AMZ</button>
+            <span className="w-px bg-gray-700 mx-1 hidden sm:block" />
             <button onClick={() => setSentFilter('')} className={`${badge} ${sentFilter === '' ? active : inactive}`}>Todos</button>
-            <button onClick={() => setSentFilter('false')} className={`${badge} ${sentFilter === 'false' ? active : inactive}`}>Não enviados</button>
+            <button onClick={() => setSentFilter('false')} className={`${badge} ${sentFilter === 'false' ? active : inactive}`}>Pendentes</button>
             <button onClick={() => setSentFilter('true')} className={`${badge} ${sentFilter === 'true' ? active : inactive}`}>Enviados</button>
           </div>
         </div>

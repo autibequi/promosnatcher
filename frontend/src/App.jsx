@@ -17,16 +17,16 @@ function AdminNav({ onLogout }) {
 
   return (
     <nav className="border-b border-gray-800 bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-        <span className="text-green-400 font-bold text-lg mr-4">🔥 Promo Snatcher</span>
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 sm:gap-4 flex-wrap">
+        <span className="text-green-400 font-bold text-lg mr-2 sm:mr-4">🔥 <span className="hidden sm:inline">Promo Snatcher</span></span>
         <NavLink to="/admin" end className={link}>Canais</NavLink>
         <NavLink to="/admin/whatsapp" className={link}>Grupos</NavLink>
         <NavLink to="/admin/analytics" className={link}>Analytics</NavLink>
-        <NavLink to="/admin/settings" className={link}>Configurações</NavLink>
+        <NavLink to="/admin/settings" className={link}>Config</NavLink>
         <div className="ml-auto">
           <button
             onClick={onLogout}
-            className="text-gray-500 hover:text-gray-300 text-sm px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+            className="text-gray-500 hover:text-gray-300 text-sm px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
           >
             Sair
           </button>

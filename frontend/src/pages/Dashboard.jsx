@@ -11,14 +11,14 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white">Canais</h1>
-          <p className="text-gray-400 mt-1">{groups.length} cana{groups.length !== 1 ? 'is' : 'l'} cadastrado{groups.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Canais</h1>
+          <p className="text-gray-400 mt-1 text-sm">{groups.length} cana{groups.length !== 1 ? 'is' : 'l'} cadastrado{groups.length !== 1 ? 's' : ''}</p>
         </div>
         <Link
           to="/admin/groups/new"
-          className="bg-green-600 hover:bg-green-500 text-white font-medium px-5 py-2.5 rounded-xl transition-colors"
+          className="bg-green-600 hover:bg-green-500 text-white font-medium px-5 py-2.5 rounded-xl transition-colors text-sm"
         >
           + Novo Canal
         </Link>
