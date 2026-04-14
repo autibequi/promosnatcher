@@ -2,6 +2,25 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api' })
 
+// Injeta token JWT em todas as requests
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('ph_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+// Remove token e força re-login em 401
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('ph_token')
+      window.location.href = '/'
+    }
+    return Promise.reject(err)
+  }
+)
+
 // Groups
 export const getGroups = () => api.get('/groups').then(r => r.data)
 export const getGroup = (id) => api.get(`/groups/${id}`).then(r => r.data)

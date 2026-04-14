@@ -1,14 +1,15 @@
 import os
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from .database import create_db_and_tables, migrate_db
-from .routers import groups, products, scan, config
+from .routers import groups, products, scan, config, auth as auth_router
+from .services.auth import require_auth
 from .services import scheduler
 from .models import AppConfig
 
@@ -69,10 +70,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(groups.router, prefix="/api")
-app.include_router(products.router, prefix="/api")
-app.include_router(scan.router, prefix="/api")
-app.include_router(config.router, prefix="/api")
+app.include_router(auth_router.router, prefix="/api")
+app.include_router(groups.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(products.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(scan.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(config.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 
 @app.get("/api/health")

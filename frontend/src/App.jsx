@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import GroupForm from './pages/GroupForm'
 import GroupDetail from './pages/GroupDetail'
 import Settings from './pages/Settings'
+import Login from './pages/Login'
 
-function Nav() {
+function Nav({ onLogout }) {
   const link = ({ isActive }) =>
     `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
       isActive ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -16,15 +18,34 @@ function Nav() {
         <span className="text-green-400 font-bold text-lg mr-4">🔥 Promo Hunter</span>
         <NavLink to="/" end className={link}>Grupos</NavLink>
         <NavLink to="/settings" className={link}>Configurações</NavLink>
+        <div className="ml-auto">
+          <button
+            onClick={onLogout}
+            className="text-gray-500 hover:text-gray-300 text-sm px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Sair
+          </button>
+        </div>
       </div>
     </nav>
   )
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState(!!localStorage.getItem('ph_token'))
+
+  if (!authed) {
+    return <Login onLogin={() => setAuthed(true)} />
+  }
+
+  const logout = () => {
+    localStorage.removeItem('ph_token')
+    setAuthed(false)
+  }
+
   return (
     <BrowserRouter>
-      <Nav />
+      <Nav onLogout={logout} />
       <main className="max-w-6xl mx-auto px-4 py-8">
         <Routes>
           <Route path="/" element={<Dashboard />} />

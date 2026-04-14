@@ -8,3 +8,4 @@ python-dotenv==1.0.1
 pydantic-settings==2.6.1
 pytz==2024.2
 crawl4ai
+python-jose[cryptography]
