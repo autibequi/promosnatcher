@@ -13,7 +13,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down build restart logs logs-backend logs-frontend \
+.PHONY: help setup start up down dev dev-down dev-logs logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network
 
 help: ## Mostra este help
@@ -31,17 +31,16 @@ setup: ## Primeira execução: cria .env a partir do .env.example
 		echo "✓ .env criado. Preencha os campos OBRIGATÓRIOS (AUTH_PASSWORD, AUTH_SECRET, WAHA_API_KEY, CLOUDFLARE_TOKEN) e rode 'make up'"; \
 	fi
 
-up: ## Build + sobe a stack em background
+start: down ## Produção: rebuild + sobe do zero
 	@mkdir -p backend/data
 	$(COMPOSE) up --build --remove-orphans -d
 
+up: ## Sobe a stack em background (sem rebuild)
+	@mkdir -p backend/data
+	$(COMPOSE) up --remove-orphans -d
+
 down: ## Para e remove os containers
 	$(COMPOSE) down
-
-build: ## Rebuilda as imagens sem subir
-	$(COMPOSE) build
-
-restart: down up ## Para e sobe novamente
 
 ps: ## Status dos containers
 	$(COMPOSE) ps
@@ -62,6 +61,22 @@ logs-frontend: ## Logs só do frontend
 # ---------------------------------------------------------------------------
 # Dev
 # ---------------------------------------------------------------------------
+
+dev: ## Modo dev com hot-reload (backend uvicorn --reload + frontend vite dev)
+	@mkdir -p backend/data
+	$(COMPOSE) -f docker-compose.dev.yml up --build --remove-orphans -d
+	@echo ""
+	@echo "🔥 Dev mode — hot-reload ativo"
+	@echo "   Frontend: http://localhost:6060 (Vite HMR)"
+	@echo "   Backend:  http://localhost:8000 (uvicorn --reload)"
+	@echo "   WAHA:     http://localhost:3200"
+	@echo "   Logs:     make dev-logs"
+
+dev-down: ## Para o ambiente dev
+	$(COMPOSE) -f docker-compose.dev.yml down
+
+dev-logs: ## Logs do ambiente dev (follow)
+	$(COMPOSE) -f docker-compose.dev.yml logs -f
 
 shell: ## Abre shell no container do backend
 	$(COMPOSE) exec backend bash

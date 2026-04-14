@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Promo Snatcher</title>
+    <script>
+      window.GA_ID = '__GA_MEASUREMENT_ID__';
+      if (window.GA_ID && !window.GA_ID.startsWith('__')) {
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + window.GA_ID;
+        s.async = true;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', window.GA_ID);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
