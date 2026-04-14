@@ -6,7 +6,7 @@ from ..database import get_session
 from ..models import Product, Group, AppConfig, PriceHistory
 from ..schemas import ProductRead, PriceHistoryRead
 from ..services.whatsapp.factory import get_adapter
-from ..services.scanner import _format_message
+from ..services.scanner import _format_message, _parse_group_ids
 
 router = APIRouter(tags=["products"])
 
@@ -64,7 +64,8 @@ async def send_product(product_id: int, session: Session = Depends(get_session))
         raise HTTPException(404, "Product not found")
 
     group = session.get(Group, product.group_id)
-    if not group or not group.whatsapp_group_id:
+    wa_group_ids = _parse_group_ids(group.whatsapp_group_id if group else None)
+    if not group or not wa_group_ids:
         raise HTTPException(400, "Grupo sem WhatsApp configurado")
 
     config = session.get(AppConfig, 1)
@@ -85,13 +86,20 @@ async def send_product(product_id: int, session: Session = Depends(get_session))
         "price": product.price,
         "url": product.url,
         "source": product.source,
+        "image_url": product.image_url,
     }
-    msg = _format_message(item, group.name)
-    ok = await adapter.send_text(group.whatsapp_group_id, msg)
-    if not ok:
+    msg = _format_message(item, group.name, group.message_template, config=config)
+
+    sent = False
+    for gid in wa_group_ids:
+        ok = await adapter.send_text(gid, msg)
+        if ok:
+            sent = True
+
+    if not sent:
         raise HTTPException(502, "Falha ao enviar mensagem")
 
     product.sent_at = datetime.utcnow()
     session.add(product)
     session.commit()
-    return {"message": "Enviado com sucesso"}
+    return {"message": f"Enviado para {len(wa_group_ids)} grupo(s)"}
