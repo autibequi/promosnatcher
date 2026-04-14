@@ -7,3 +7,4 @@ beautifulsoup4==4.12.3
 python-dotenv==1.0.1
 pydantic-settings==2.6.1
 pytz==2024.2
+crawl4ai
