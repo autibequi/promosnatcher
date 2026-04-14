@@ -132,7 +132,9 @@ export default function Settings() {
           {/* Provider selector — bloqueado quando WA ativo */}
           {waStatus?.status === 'WORKING' ? (
             <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5">
-              <span className="text-sm text-white font-mono">{form.wa_provider.toUpperCase()}</span>
+              <span className="text-sm text-white font-mono">
+                WAHA ({waStatus?.engine?.engine || 'WEBJS'})
+              </span>
               <span className="text-xs text-gray-500">🔒 Desconecte para alterar</span>
             </div>
           ) : (
