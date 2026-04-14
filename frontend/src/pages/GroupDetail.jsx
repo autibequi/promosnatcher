@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getGroup, getProducts, deleteGroup, createWAGroup } from '../api'
+import { getGroup, getProducts, deleteGroup, createWAGroup, updateGroup, getWAGroups } from '../api'
 import ScanStatus from '../components/ScanStatus'
 import ProductCard from '../components/ProductCard'
 
@@ -32,12 +32,33 @@ export default function GroupDetail() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['groups'] }); navigate('/') },
   })
 
+  const [showWAPicker, setShowWAPicker] = useState(false)
+
   const createWA = useMutation({
     mutationFn: () => createWAGroup(id, []),
     onSuccess: () => {
-      // Aguarda ~35s e recarrega (background task pode levar tempo)
       setTimeout(() => qc.invalidateQueries({ queryKey: ['group', id] }), 35000)
     },
+  })
+
+  const { data: waGroups = [], isLoading: loadingWAGroups } = useQuery({
+    queryKey: ['waGroups'],
+    queryFn: getWAGroups,
+    enabled: showWAPicker,
+    staleTime: 30000,
+  })
+
+  const linkGroup = useMutation({
+    mutationFn: (waGroupId) => updateGroup(id, { whatsapp_group_id: waGroupId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', id] })
+      setShowWAPicker(false)
+    },
+  })
+
+  const unlinkGroup = useMutation({
+    mutationFn: () => updateGroup(id, { whatsapp_group_id: null, wa_group_status: null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['group', id] }),
   })
 
   if (loadingGroup) return <div className="text-center text-gray-400 py-16">Carregando...</div>
@@ -85,28 +106,71 @@ export default function GroupDetail() {
           <p className="text-sm text-white">R$ {group.min_val.toFixed(2)} — R$ {group.max_val.toFixed(2)}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-xs text-gray-500 mb-1">WhatsApp Group ID</p>
+          <p className="text-xs text-gray-500 mb-2">Grupo WhatsApp</p>
+
           {group.whatsapp_group_id ? (
-            <p className={`text-xs font-mono break-all ${
-              group.wa_group_status === 'removed' ? 'text-red-400' : 'text-green-400'
-            }`}>
-              {group.wa_group_status === 'removed' ? '⚠️ Removido — ' : ''}
-              {group.whatsapp_group_id}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2 mt-1">
-              <span className="text-sm text-gray-600">Não vinculado</span>
+            /* Já vinculado */
+            <div className="space-y-1.5">
+              <p className={`text-xs font-medium ${
+                group.wa_group_status === 'removed' ? 'text-red-400' : 'text-green-400'
+              }`}>
+                {group.wa_group_status === 'removed' ? '⚠️ Removido' : '📱 Vinculado'}
+              </p>
+              <p className="text-xs text-gray-500 font-mono break-all">{group.whatsapp_group_id}</p>
               <button
-                onClick={() => createWA.mutate()}
-                disabled={createWA.isPending || createWA.isSuccess}
-                className="text-xs bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors"
+                onClick={() => { if (confirm('Desvincular grupo WA?')) unlinkGroup.mutate() }}
+                disabled={unlinkGroup.isPending}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
               >
-                {createWA.isPending ? '⏳ Criando...' : '📱 Criar grupo WA'}
+                🔗 Desvincular
               </button>
-              {createWA.isSuccess && (
-                <span className="text-xs text-yellow-400">⏳ Criando grupo no WA... aguarde ~30s e recarregue</span>
+            </div>
+          ) : showWAPicker ? (
+            /* Seletor de grupos */
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">Selecione um grupo:</p>
+                <button onClick={() => setShowWAPicker(false)} className="text-xs text-gray-500 hover:text-white">✕</button>
+              </div>
+              {loadingWAGroups && <p className="text-xs text-gray-500">Carregando...</p>}
+              {!loadingWAGroups && waGroups.length === 0 && (
+                <p className="text-xs text-gray-500">Nenhum grupo com prefixo encontrado.</p>
               )}
-              {createWA.isError && <span className="text-xs text-red-400">✗ Erro ao criar</span>}
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {waGroups.map(g => (
+                  <button key={g.id}
+                    onClick={() => linkGroup.mutate(g.id)}
+                    disabled={linkGroup.isPending}
+                    className="w-full text-left bg-gray-800 hover:bg-green-900 disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <p className="text-xs text-white font-medium">{g.name}</p>
+                    <p className="text-xs text-gray-500 font-mono">{g.id.slice(0, 20)}...</p>
+                  </button>
+                ))}
+              </div>
+              <div className="pt-1 border-t border-gray-800">
+                <button
+                  onClick={() => createWA.mutate()}
+                  disabled={createWA.isPending || createWA.isSuccess}
+                  className="text-xs text-green-400 hover:text-green-300 disabled:opacity-50 transition-colors"
+                >
+                  {createWA.isPending ? '⏳ Criando...' : '+ Criar novo grupo'}
+                </button>
+                {createWA.isSuccess && (
+                  <span className="text-xs text-yellow-400 ml-2">⏳ aguarde ~10s e reabra</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Não vinculado */
+            <div className="space-y-2">
+              <p className="text-xs text-gray-600">Não vinculado</p>
+              <button
+                onClick={() => setShowWAPicker(true)}
+                className="text-xs bg-green-800 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors w-full"
+              >
+                📱 Selecionar / criar grupo WA
+              </button>
             </div>
           )}
         </div>
