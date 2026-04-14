@@ -195,7 +195,7 @@ export default function Settings() {
               <p className="text-xs text-yellow-400 mb-2">Escaneie o QR com o WhatsApp →</p>
               <iframe src="/api/config/wa/qr"
                 className="w-full rounded-xl border-0 bg-black"
-                style={{ height: 580 }} />
+                style={{ height: 700 }} />
             </div>
           )}
 

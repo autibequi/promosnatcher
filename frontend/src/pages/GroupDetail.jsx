@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGroup, getProducts, deleteGroup, createWAGroup, updateGroup, getWAGroups } from '../api'
@@ -50,12 +50,14 @@ export default function GroupDetail() {
   })
 
   // Parseia o campo como array (pode ser JSON array ou ID único)
-  const linkedIds = (() => {
+  const linkedIds = useMemo(() => {
     const raw = group?.whatsapp_group_id
     if (!raw) return []
-    if (raw.startsWith('[')) try { return JSON.parse(raw) } catch { return [raw] }
+    try {
+      if (raw.startsWith('[')) return JSON.parse(raw)
+    } catch { /* segue */ }
     return [raw]
-  })()
+  }, [group?.whatsapp_group_id])
 
   const setGroupIds = (ids) => updateGroup(id, {
     whatsapp_group_id: ids.length === 0 ? null : ids.length === 1 ? ids[0] : JSON.stringify(ids),
