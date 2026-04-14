@@ -29,12 +29,30 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN amz_tracking_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN ml_affiliate_tool_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN alert_phone TEXT',
+            'ALTER TABLE product ADD COLUMN short_id TEXT',
         ]:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
             except Exception:
                 pass  # coluna já existe
+
+    # Backfill short_ids para produtos existentes sem um
+    _backfill_short_ids()
+
+
+def _backfill_short_ids():
+    """Preenche short_id para produtos existentes que não têm."""
+    from .models import _gen_short_id
+    with Session(engine) as session:
+        rows = session.exec(text("SELECT id FROM product WHERE short_id IS NULL OR short_id = ''")).all()
+        for (pid,) in rows:
+            session.execute(
+                text("UPDATE product SET short_id = :sid WHERE id = :pid"),
+                {"sid": _gen_short_id(), "pid": pid},
+            )
+        if rows:
+            session.commit()
 
 
 def get_session():

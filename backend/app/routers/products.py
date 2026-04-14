@@ -96,6 +96,7 @@ async def send_product(product_id: int, session: Session = Depends(get_session))
         "url": product.url,
         "source": product.source,
         "image_url": product.image_url,
+        "short_id": product.short_id,
     }
     msg = _format_message(item, group.name, group.message_template, config=config)
 
@@ -112,7 +113,7 @@ async def send_product(product_id: int, session: Session = Depends(get_session))
             sent = True
 
     if not sent:
-        raise HTTPException(502, "Falha ao enviar mensagem")
+        raise HTTPException(422, "Falha ao enviar mensagem — verifique se o WhatsApp está conectado e o grupo WA vinculado")
 
     product.sent_at = datetime.utcnow()
     session.add(product)

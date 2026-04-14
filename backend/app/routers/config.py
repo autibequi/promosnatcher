@@ -157,13 +157,12 @@ class WAGroupCreate(BaseModel):
     name: str
 
 
-@router.post("/wa/groups", status_code=202)
+@router.post("/wa/groups")
 async def create_wa_group_via_config(
     body: WAGroupCreate,
-    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """Cria grupo WA em background. Atualiza lista em ~10s."""
+    """Cria grupo WA de forma síncrona — retorna resultado ou erro."""
     config = _get_or_create_config(session)
     adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
@@ -173,15 +172,12 @@ async def create_wa_group_via_config(
     prefix = config.wa_group_prefix or ""
     full_name = f"{prefix} - {body.name}" if prefix else body.name
 
-    async def _create():
-        wa_id = await adapter.create_group(full_name, [])
-        if wa_id:
-            logger.info(f"Grupo WA criado: {wa_id} ({full_name})")
-        else:
-            logger.error(f"Falha ao criar grupo WA: {full_name}")
+    wa_id = await adapter.create_group(full_name, [])
+    if wa_id:
+        logger.info(f"Grupo WA criado: {wa_id} ({full_name})")
+        return {"message": f"Grupo '{full_name}' criado", "group_id": wa_id}
 
-    background_tasks.add_task(_create)
-    return {"message": f"Criando '{body.name}'... atualize a lista em ~10s"}
+    raise HTTPException(422, f"Falha ao criar grupo WA '{full_name}'. Verifique os logs do WAHA.")
 
 
 @router.post("/test-wa")

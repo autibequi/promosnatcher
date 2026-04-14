@@ -66,7 +66,7 @@ export default function Settings() {
     mutationFn: createWAGroupDirect,
     onSuccess: () => {
       setNewGroupName('')
-      setTimeout(() => refetchGroups(), 12000)
+      refetchGroups()
     },
   })
 
@@ -209,7 +209,12 @@ export default function Settings() {
                 </button>
               </div>
               {createGroup.isSuccess && (
-                <p className="text-xs text-yellow-400">⏳ Criando... aguarde ~10s e clique Atualizar</p>
+                <p className="text-xs text-green-400">✓ Grupo criado! Clique Atualizar para ver.</p>
+              )}
+              {createGroup.isError && (
+                <p className="text-xs text-red-400">
+                  ✗ {createGroup.error?.response?.data?.detail || 'Erro ao criar grupo'}
+                </p>
               )}
 
               {/* Lista de grupos */}

@@ -53,12 +53,18 @@ def _format_message(
 ) -> str:
     price_fmt = f"R$ {product['price']:.2f}".replace(".", ",")
     source_label = "Mercado Livre" if product["source"] == "mercadolivre" else "Amazon"
-    url = product["url"]
-    if config:
-        if product["source"] == "amazon" and config.amz_tracking_id:
-            url = amazon.make_affiliate_url(url, config.amz_tracking_id)
-        elif product["source"] == "mercadolivre" and config.ml_affiliate_tool_id:
-            url = mercadolivre.make_affiliate_url(url, config.ml_affiliate_tool_id)
+    # Short link se disponível, senão fallback direto com afiliado
+    short_id = product.get("short_id")
+    if short_id:
+        public_url = os.getenv("PUBLIC_URL", "https://snatcher.autibequi.com")
+        url = f"{public_url}/r/{short_id}"
+    else:
+        url = product["url"]
+        if config:
+            if product["source"] == "amazon" and config.amz_tracking_id:
+                url = amazon.make_affiliate_url(url, config.amz_tracking_id)
+            elif product["source"] == "mercadolivre" and config.ml_affiliate_tool_id:
+                url = mercadolivre.make_affiliate_url(url, config.ml_affiliate_tool_id)
     ctx = {
         "title": product["title"],
         "price": price_fmt,
@@ -165,21 +171,7 @@ async def scan_group(group_id: int):
                 stored = existing.get(item["url"])
 
                 if stored is None:
-                    # Produto novo
-                    sent_at = None
-                    if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
-                        msg = _format_message(item, group.name, group.message_template, config=config)
-                        img = item.get("image_url")
-                        for gid in wa_group_ids:
-                            if img:
-                                ok = await wa_adapter.send_image(gid, img, msg)
-                                if not ok:  # fallback para texto
-                                    ok = await wa_adapter.send_text(gid, msg)
-                            else:
-                                ok = await wa_adapter.send_text(gid, msg)
-                            if ok:
-                                sent_at = datetime.utcnow()
-
+                    # Produto novo — criar primeiro para obter short_id
                     product = Product(
                         group_id=group_id,
                         title=item["title"],
@@ -187,11 +179,26 @@ async def scan_group(group_id: int):
                         url=item["url"],
                         image_url=item.get("image_url"),
                         source=item["source"],
-                        sent_at=sent_at,
                     )
                     session.add(product)
-                    session.flush()  # obtém product.id para o histórico
+                    session.flush()  # obtém product.id + short_id
                     session.add(PriceHistory(product_id=product.id, price=item["price"]))
+
+                    # Enviar via WA com short link
+                    if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
+                        item_with_short = {**item, "short_id": product.short_id}
+                        msg = _format_message(item_with_short, group.name, group.message_template, config=config)
+                        img = item.get("image_url")
+                        for gid in wa_group_ids:
+                            if img:
+                                ok = await wa_adapter.send_image(gid, img, msg)
+                                if not ok:
+                                    ok = await wa_adapter.send_text(gid, msg)
+                            else:
+                                ok = await wa_adapter.send_text(gid, msg)
+                            if ok:
+                                product.sent_at = datetime.utcnow()
+
                     existing[item["url"]] = product
                     new_count += 1
 
@@ -211,8 +218,9 @@ async def scan_group(group_id: int):
                             })
                             stored.sent_at = None
                             if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
+                                item_with_short = {**item, "short_id": stored.short_id}
                                 msg = _format_message(
-                                    item, group.name, group.message_template, is_drop=True, config=config
+                                    item_with_short, group.name, group.message_template, is_drop=True, config=config
                                 )
                                 img = item.get("image_url")
                                 for gid in wa_group_ids:

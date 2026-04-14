@@ -1,6 +1,13 @@
+import secrets
+import string
 from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel, Relationship
+
+
+def _gen_short_id(length: int = 7) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 class Group(SQLModel, table=True):
@@ -30,11 +37,13 @@ class Product(SQLModel, table=True):
     url: str
     image_url: Optional[str] = None
     source: str  # "mercadolivre" | "amazon"
+    short_id: str = Field(default_factory=_gen_short_id, index=True)
     found_at: datetime = Field(default_factory=datetime.utcnow)
     sent_at: Optional[datetime] = None
 
     group: Optional[Group] = Relationship(back_populates="products")
     price_history: list["PriceHistory"] = Relationship(back_populates="product")
+    click_logs: list["ClickLog"] = Relationship(back_populates="product")
 
 
 class PriceHistory(SQLModel, table=True):
@@ -73,3 +82,14 @@ class AppConfig(SQLModel, table=True):
     amz_tracking_id: Optional[str] = None
     ml_affiliate_tool_id: Optional[str] = None
     alert_phone: Optional[str] = None  # número WA do admin para alertas (ex: "5511999998888@c.us")
+
+
+class ClickLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    product_id: int = Field(foreign_key="product.id", index=True)
+    clicked_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    ip_hash: str = ""
+    user_agent: str = ""
+    referrer: str = ""
+
+    product: Optional[Product] = Relationship(back_populates="click_logs")
