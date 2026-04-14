@@ -78,6 +78,8 @@ class AppConfigRead(BaseModel):
     wa_base_url: Optional[str]
     wa_instance: Optional[str]
     global_interval: int
+    send_start_hour: int
+    send_end_hour: int
 
     class Config:
         from_attributes = True
@@ -89,6 +91,8 @@ class AppConfigUpdate(BaseModel):
     wa_api_key: Optional[str] = None
     wa_instance: Optional[str] = None
     global_interval: Optional[int] = None
+    send_start_hour: Optional[int] = None
+    send_end_hour: Optional[int] = None
 
 
 class PriceHistoryRead(BaseModel):

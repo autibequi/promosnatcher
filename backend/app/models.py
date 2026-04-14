@@ -64,3 +64,5 @@ class AppConfig(SQLModel, table=True):
     wa_api_key: Optional[str] = None
     wa_instance: Optional[str] = None
     global_interval: int = 30
+    send_start_hour: int = 8   # hora início envio WA (inclusive), fuso TZ_NAME
+    send_end_hour: int = 22    # hora fim envio WA (exclusive)

@@ -1,5 +1,7 @@
 import logging
+import os
 from datetime import datetime
+import pytz
 from sqlmodel import Session, select
 
 from ..models import Group, Product, ScanJob, AppConfig, PriceHistory
@@ -18,6 +20,12 @@ DEFAULT_TEMPLATE = (
 )
 
 PRICE_DROP_BADGE = "🚨 *QUEDA DE PREÇO — {group_name}*\n\n"
+
+
+def _within_send_window(start_hour: int, end_hour: int) -> bool:
+    tz = pytz.timezone(os.getenv("TZ_NAME", "America/Sao_Paulo"))
+    now_hour = datetime.now(tz).hour
+    return start_hour <= now_hour < end_hour
 
 
 def _format_message(
@@ -89,7 +97,7 @@ async def scan_group(group_id: int):
                 if stored is None:
                     # Produto novo
                     sent_at = None
-                    if wa_adapter:
+                    if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
                         msg = _format_message(item, group.name, group.message_template)
                         ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
                         if ok:
@@ -126,7 +134,7 @@ async def scan_group(group_id: int):
                                 f"({stored.price:.2f} → {item['price']:.2f})"
                             )
                             stored.sent_at = None
-                            if wa_adapter:
+                            if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
                                 msg = _format_message(
                                     item, group.name, group.message_template, is_drop=True
                                 )

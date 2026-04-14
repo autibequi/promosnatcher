@@ -11,6 +11,8 @@ export default function Settings() {
     wa_api_key: '',
     wa_instance: '',
     global_interval: 30,
+    send_start_hour: 8,
+    send_end_hour: 22,
   })
 
   useEffect(() => {
@@ -21,6 +23,8 @@ export default function Settings() {
         wa_api_key: '',
         wa_instance: config.wa_instance || '',
         global_interval: config.global_interval || 30,
+        send_start_hour: config.send_start_hour ?? 8,
+        send_end_hour: config.send_end_hour ?? 22,
       })
     }
   }, [config])
@@ -38,6 +42,8 @@ export default function Settings() {
     save.mutate({
       ...form,
       global_interval: parseInt(form.global_interval),
+      send_start_hour: parseInt(form.send_start_hour),
+      send_end_hour: parseInt(form.send_end_hour),
       wa_api_key: form.wa_api_key || undefined,
     })
   }
@@ -101,6 +107,20 @@ export default function Settings() {
             <input className={field} type="number" min="5" max="1440" value={form.global_interval} onChange={set('global_interval')} />
             <p className="text-xs text-gray-500 mt-1">Grupos sem intervalo próprio usam esse valor. Reinicia o scheduler ao salvar.</p>
           </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div>
+              <label className={label}>Enviar WA a partir de (h)</label>
+              <input className={field} type="number" min="0" max="23" value={form.send_start_hour} onChange={set('send_start_hour')} />
+            </div>
+            <div>
+              <label className={label}>Enviar WA até (h)</label>
+              <input className={field} type="number" min="0" max="23" value={form.send_end_hour} onChange={set('send_end_hour')} />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Fuso: America/Sao_Paulo. Scans rodam normalmente fora da janela — só o envio WA é bloqueado.
+          </p>
         </div>
 
         {save.isSuccess && <p className="text-green-400 text-sm">✓ Configurações salvas!</p>}
