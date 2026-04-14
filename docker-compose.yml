@@ -8,6 +8,7 @@ services:
       - waha_data:/app/.sessions
     environment:
       - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      # WEBJS suporta foto de grupo mas nao cria grupos — usar NOWEB
       - WAHA_LOG_LEVEL=warn
     restart: unless-stopped
     healthcheck:
