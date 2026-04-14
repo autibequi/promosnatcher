@@ -2,6 +2,7 @@
 # Detecta docker compose v2 ou podman-compose
 COMPOSE := $(shell command -v docker 2>/dev/null && docker compose version >/dev/null 2>&1 && echo "docker compose" || command -v podman-compose 2>/dev/null && echo "podman-compose" || echo "docker-compose")
 BACKEND_URL := http://localhost:8000
+FRONTEND_URL := http://localhost:6667
 
 .DEFAULT_GOAL := help
 
@@ -66,7 +67,7 @@ test: ## Testa saúde da stack via HTTP
 	@curl -sf $(BACKEND_URL)/api/config  | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  config: provider={d[\"wa_provider\"]} interval={d[\"global_interval\"]}min')"
 	@curl -sf $(BACKEND_URL)/api/scan/status | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  scheduler: running={d[\"running\"]} next={d.get(\"next_run\",\"?\")[:19]}')"
 	@echo ""
-	@echo "Stack OK — frontend: http://localhost:3000  docs: $(BACKEND_URL)/docs"
+	@echo "Stack OK — frontend: $(FRONTEND_URL)  docs: $(BACKEND_URL)/docs"
 
 status: ## Status resumido da stack + próximo scan
 	@$(COMPOSE) ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || $(COMPOSE) ps
