@@ -1,6 +1,40 @@
 import { Link } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { deleteGroup, triggerScan } from '../api'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { deleteGroup, triggerScan, getScanJobs } from '../api'
+
+function ScanBadge({ groupId }) {
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['scanJobs'],
+    queryFn: getScanJobs,
+    refetchInterval: (data) => {
+      const latest = (data ?? []).find(j => j.group_id === groupId)
+      return latest?.status === 'running' ? 2000 : 15000
+    },
+  })
+
+  const job = jobs.find(j => j.group_id === groupId)
+  if (!job) return null
+
+  if (job.status === 'running') {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-yellow-400 animate-pulse">
+        <span className="inline-block w-2 h-2 rounded-full bg-yellow-400" />
+        Escaneando...
+      </span>
+    )
+  }
+  if (job.status === 'done') {
+    return (
+      <span className="text-xs text-gray-500">
+        ✓ {job.products_found} produto{job.products_found !== 1 ? 's' : ''} · {new Date(job.finished_at).toLocaleTimeString('pt-BR')}
+      </span>
+    )
+  }
+  if (job.status === 'error') {
+    return <span className="text-xs text-red-400">✗ Erro no scan</span>
+  }
+  return null
+}
 
 export default function GroupCard({ group }) {
   const qc = useQueryClient()
@@ -12,6 +46,7 @@ export default function GroupCard({ group }) {
 
   const scan = useMutation({
     mutationFn: () => triggerScan(group.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scanJobs'] }),
   })
 
   return (
@@ -44,13 +79,16 @@ export default function GroupCard({ group }) {
         </span>
       </div>
 
+      {/* Status do último scan */}
+      <ScanBadge groupId={group.id} />
+
       <div className="flex gap-2 pt-1">
         <button
           onClick={() => scan.mutate()}
           disabled={scan.isPending}
           className="flex-1 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-lg transition-colors"
         >
-          {scan.isPending ? '⏳ Escaneando...' : '🔍 Scan Now'}
+          {scan.isPending ? '⏳' : '🔍 Scan Now'}
         </button>
         <Link
           to={`/groups/${group.id}/edit`}
@@ -65,10 +103,6 @@ export default function GroupCard({ group }) {
           🗑️
         </button>
       </div>
-
-      {scan.isSuccess && (
-        <p className="text-xs text-green-400">✓ Scan iniciado!</p>
-      )}
     </div>
   )
 }
