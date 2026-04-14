@@ -12,12 +12,12 @@ from .whatsapp.factory import get_adapter
 logger = logging.getLogger(__name__)
 
 DEFAULT_TEMPLATE = (
-    "*{title}*\n"
-    "💰 {price}\n\n"
-    "🔗 {url}"
+    "*{title}*\n\n"
+    "{price}\n"
+    "{url}"
 )
 
-PRICE_DROP_BADGE = "🚨 *QUEDA DE PREÇO*\n\n"
+PRICE_DROP_BADGE = "*QUEDA DE PREÇO*\n\n"
 
 
 import json as _json
