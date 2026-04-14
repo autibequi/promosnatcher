@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
+import Frontpage from './pages/Frontpage'
 import Dashboard from './pages/Dashboard'
 import GroupForm from './pages/GroupForm'
 import GroupDetail from './pages/GroupDetail'
 import Settings from './pages/Settings'
+import Analytics from './pages/Analytics'
 import Login from './pages/Login'
 
-function Nav({ onLogout }) {
+function AdminNav({ onLogout }) {
   const link = ({ isActive }) =>
     `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
       isActive ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -16,8 +18,9 @@ function Nav({ onLogout }) {
     <nav className="border-b border-gray-800 bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
         <span className="text-green-400 font-bold text-lg mr-4">🔥 Promo Snatcher</span>
-        <NavLink to="/" end className={link}>Grupos</NavLink>
-        <NavLink to="/settings" className={link}>Configurações</NavLink>
+        <NavLink to="/admin" end className={link}>Grupos</NavLink>
+        <NavLink to="/admin/analytics" className={link}>Analytics</NavLink>
+        <NavLink to="/admin/settings" className={link}>Configurações</NavLink>
         <div className="ml-auto">
           <button
             onClick={onLogout}
@@ -31,30 +34,73 @@ function Nav({ onLogout }) {
   )
 }
 
-export default function App() {
-  const [authed, setAuthed] = useState(!!localStorage.getItem('ph_token'))
+function RequireAuth({ children }) {
+  const token = localStorage.getItem('ph_token')
+  const location = useLocation()
+  if (!token) return <Navigate to="/login" state={{ from: location }} replace />
+  return children
+}
 
-  if (!authed) {
-    return <Login onLogin={() => setAuthed(true)} />
-  }
+export default function App() {
+  const [, setTick] = useState(0)
 
   const logout = () => {
     localStorage.removeItem('ph_token')
-    setAuthed(false)
+    setTick(t => t + 1)
   }
+
+  const isAuthed = !!localStorage.getItem('ph_token')
 
   return (
     <BrowserRouter>
-      <Nav onLogout={logout} />
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/groups/new" element={<GroupForm />} />
-          <Route path="/groups/:id" element={<GroupDetail />} />
-          <Route path="/groups/:id/edit" element={<GroupForm />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </main>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<Frontpage />} />
+        <Route path="/login" element={
+          isAuthed ? <Navigate to="/admin" replace /> : <Login onLogin={() => setTick(t => t + 1)} />
+        } />
+
+        {/* Admin routes */}
+        <Route path="/admin" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><Dashboard /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/groups/new" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><GroupForm /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/groups/:id" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><GroupDetail /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/groups/:id/edit" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><GroupForm /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/settings" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><Settings /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/analytics" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><Analytics /></main>
+          </RequireAuth>
+        } />
+
+        {/* Catch-all → frontpage */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </BrowserRouter>
   )
 }

@@ -41,7 +41,7 @@ export default function GroupDetail() {
 
   const del = useMutation({
     mutationFn: () => deleteGroup(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['groups'] }); navigate('/') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['groups'] }); navigate('/admin') },
   })
 
   const [showWAPicker, setShowWAPicker] = useState(false)
@@ -108,7 +108,7 @@ export default function GroupDetail() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <Link to="/" className="text-gray-500 hover:text-gray-300 text-sm">← Grupos</Link>
+            <Link to="/admin" className="text-gray-500 hover:text-gray-300 text-sm">← Grupos</Link>
             <span className={`text-xs px-2 py-0.5 rounded-full ${group.active ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
               {group.active ? 'Ativo' : 'Inativo'}
             </span>
@@ -117,7 +117,7 @@ export default function GroupDetail() {
           {group.description && <p className="text-gray-400 mt-1">{group.description}</p>}
         </div>
         <div className="flex gap-2">
-          <Link to={`/groups/${id}/edit`} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+          <Link to={`/admin/groups/${id}/edit`} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
             ✏️ Editar
           </Link>
           <button

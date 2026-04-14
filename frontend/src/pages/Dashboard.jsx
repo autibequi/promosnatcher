@@ -17,7 +17,7 @@ export default function Dashboard() {
           <p className="text-gray-400 mt-1">{groups.length} grupo{groups.length !== 1 ? 's' : ''} cadastrado{groups.length !== 1 ? 's' : ''}</p>
         </div>
         <Link
-          to="/groups/new"
+          to="/admin/groups/new"
           className="bg-green-600 hover:bg-green-500 text-white font-medium px-5 py-2.5 rounded-xl transition-colors"
         >
           + Novo Grupo
@@ -40,7 +40,7 @@ export default function Dashboard() {
           <p className="text-gray-400 text-lg">Nenhum grupo ainda.</p>
           <p className="text-gray-500 text-sm mt-2">Crie um grupo para começar a varrer promoções.</p>
           <Link
-            to="/groups/new"
+            to="/admin/groups/new"
             className="mt-6 inline-block bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl transition-colors"
           >
             Criar primeiro grupo

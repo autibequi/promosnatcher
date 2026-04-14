@@ -25,7 +25,7 @@ api.interceptors.response.use(
       const isWAHA = url.includes('/wa/') || url.includes('/config/wa')
       if (!isWAHA) {
         localStorage.removeItem('ph_token')
-        window.location.href = '/'
+        window.location.href = '/login'
       }
     }
     return Promise.reject(err)
@@ -62,5 +62,11 @@ export const startWASession = () => api.post('/config/wa/session/start').then(r 
 export const logoutWASession = () => api.post('/config/wa/session/logout').then(r => r.data)
 export const getWAGroups = () => api.get('/config/wa/groups').then(r => r.data)
 export const createWAGroupDirect = (name) => api.post('/config/wa/groups', { name }).then(r => r.data)
+
+// Analytics
+export const getAnalyticsSummary = (days = 30) =>
+  api.get('/analytics/summary', { params: { days } }).then(r => r.data)
+export const getAnalyticsByGroup = (days = 30) =>
+  api.get('/analytics/by-group', { params: { days } }).then(r => r.data)
 
 export default api

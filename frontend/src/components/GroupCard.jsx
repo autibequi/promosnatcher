@@ -50,7 +50,7 @@ export default function GroupCard({ group }) {
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-col gap-3">
       <div className="flex items-start justify-between">
         <div>
-          <Link to={`/groups/${group.id}`} className="text-lg font-semibold text-white hover:text-green-400 transition-colors">
+          <Link to={`/admin/groups/${group.id}`} className="text-lg font-semibold text-white hover:text-green-400 transition-colors">
             {group.name}
           </Link>
           {group.description && (

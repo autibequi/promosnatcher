@@ -46,7 +46,7 @@ export default function GroupForm() {
     mutationFn: (data) => isEdit ? updateGroup(id, data) : createGroup(data),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['groups'] })
-      navigate(isEdit ? `/groups/${id}` : `/groups/${result.id}`)
+      navigate(isEdit ? `/admin/groups/${id}` : `/admin/groups/${result.id}`)
     },
   })
 
