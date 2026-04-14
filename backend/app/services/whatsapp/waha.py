@@ -45,8 +45,12 @@ class WAHAAdapter(WhatsAppAdapter):
                     gid = data.get("gid") or {}
                     group_id = gid.get("_serialized") or data.get("id") or data.get("chatId")
                     if group_id:
-                        # WAHA NOWEB ignora o 'title' na criação — seta o subject separadamente
+                        # WAHA ignora 'title' na criação — seta subject separadamente
                         await self._set_group_subject(group_id, name)
+                        # Tenta definir foto (requer engine WEBJS)
+                        import os
+                        logo = os.getenv("GROUP_LOGO_PATH", "/app/assets/logo.png")
+                        await self._set_group_picture(group_id, logo)
                     return group_id
                 logger.warning(f"WAHA create_group attempt {attempt+1}: {r.status_code} {r.text[:200]}")
                 await asyncio.sleep(3)
@@ -54,6 +58,29 @@ class WAHAAdapter(WhatsAppAdapter):
                 logger.error(f"WAHA create_group: {e}")
                 await asyncio.sleep(2)
         return None
+
+    async def _set_group_picture(self, group_id: str, image_path: str) -> bool:
+        """Define foto do grupo (requer engine WEBJS)."""
+        import base64, pathlib
+        p = pathlib.Path(image_path)
+        if not p.exists():
+            logger.warning(f"Logo não encontrado: {image_path}")
+            return False
+        mime = "image/png" if p.suffix == ".png" else "image/jpeg"
+        b64 = base64.b64encode(p.read_bytes()).decode()
+        url = f"{self.base_url}/api/{self.session}/groups/{group_id}/picture"
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.put(url,
+                    json={"image": f"data:{mime};base64,{b64}"},
+                    headers={**self._headers, "Content-Type": "application/json"})
+            if r.status_code == 200:
+                return True
+            logger.warning(f"WAHA set_group_picture: {r.status_code} {r.text[:100]}")
+            return False
+        except Exception as e:
+            logger.warning(f"WAHA set_group_picture: {e}")
+            return False
 
     async def _set_group_subject(self, group_id: str, name: str) -> bool:
         url = f"{self.base_url}/api/{self.session}/groups/{group_id}/subject"
