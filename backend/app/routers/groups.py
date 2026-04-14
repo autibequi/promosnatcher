@@ -136,5 +136,5 @@ async def create_wa_group(
         else:
             logger.error(f"Falha ao criar grupo WA para grupo {group_id}")
 
-    background_tasks.add_task(asyncio.ensure_future, _do_create())
+    background_tasks.add_task(_do_create)
     return {"message": "Criação em andamento — recarregue em ~30s"}
