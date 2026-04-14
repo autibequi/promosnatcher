@@ -6,10 +6,7 @@ function ScanBadge({ groupId }) {
   const { data: jobs = [] } = useQuery({
     queryKey: ['scanJobs'],
     queryFn: getScanJobs,
-    refetchInterval: (data) => {
-      const latest = (data ?? []).find(j => j.group_id === groupId)
-      return latest?.status === 'running' ? 2000 : 15000
-    },
+    refetchInterval: 5000,
   })
 
   const job = jobs.find(j => j.group_id === groupId)
