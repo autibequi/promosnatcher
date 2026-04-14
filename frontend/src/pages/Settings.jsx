@@ -119,64 +119,15 @@ export default function Settings() {
 
       <form onSubmit={submit} className="space-y-5">
 
-        {/* ── WhatsApp Connection — só mostra detalhes se não for WAHA ── */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+        {/* ── WhatsApp — WAHA only ── */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-white">WhatsApp</h2>
-            {form.wa_provider === 'waha' && (
-              <span className="text-xs text-gray-500">Gerenciado pelo painel abaixo</span>
-            )}
+            <span className="text-xs text-gray-500 font-mono">
+              WAHA {waStatus?.engine?.engine ? `(${waStatus.engine.engine})` : ''}
+            </span>
           </div>
-
-          {/* Provider selector — bloqueado quando WA ativo */}
-          {waStatus?.status === 'WORKING' ? (
-            <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5">
-              <span className="text-sm text-white font-mono">
-                WAHA ({waStatus?.engine?.engine || 'WEBJS'})
-              </span>
-              <span className="text-xs text-gray-500">🔒 Desconecte para alterar</span>
-            </div>
-          ) : (
-            <div>
-              <label className={label}>Provider</label>
-              <select className={field} value={form.wa_provider} onChange={set('wa_provider')}>
-                <option value="waha">WAHA (self-hosted, recomendado)</option>
-                <option value="evolution">Evolution API (legado)</option>
-                <option value="zapi">Z-API (SaaS)</option>
-              </select>
-            </div>
-          )}
-
-          {/* Campos avançados — só para providers não-WAHA */}
-          {form.wa_provider !== 'waha' && (
-            <>
-              <div>
-                <label className={label}>Base URL</label>
-                <input className={field} value={form.wa_base_url} onChange={set('wa_base_url')}
-                  placeholder="http://localhost:8080" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={label}>API Key</label>
-                  <input className={field} type="password" value={form.wa_api_key} onChange={set('wa_api_key')} placeholder="••••••••" />
-                </div>
-                <div>
-                  <label className={label}>Session / Instance</label>
-                  <input className={field} value={form.wa_instance} onChange={set('wa_instance')} placeholder="default" />
-                </div>
-              </div>
-              <button type="button" onClick={() => test.mutate()}
-                disabled={test.isPending}
-                className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm transition-colors">
-                {test.isPending ? '⏳ Testando...' : '🔌 Testar conexão'}
-              </button>
-              {test.isSuccess && (
-                <p className={`text-sm ${test.data.connected ? 'text-green-400' : 'text-red-400'}`}>
-                  {test.data.connected ? '✓ Conectado!' : '✗ Falha na conexão'}
-                </p>
-              )}
-            </>
-          )}
+          <p className="text-xs text-gray-600 mt-1">Gerenciado pelo painel abaixo.</p>
         </div>
 
         {/* ── WAHA Status + QR + Grupos ────────────────────────────── */}

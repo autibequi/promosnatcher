@@ -60,7 +60,7 @@ class ScanJob(SQLModel, table=True):
 
 class AppConfig(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
-    wa_provider: str = "evolution"  # evolution | zapi
+    wa_provider: str = "waha"
     wa_base_url: Optional[str] = None
     wa_api_key: Optional[str] = None
     wa_instance: Optional[str] = None

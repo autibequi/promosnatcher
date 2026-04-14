@@ -59,28 +59,27 @@ export default function GroupDetail() {
     return [raw]
   }, [group?.whatsapp_group_id])
 
-  const setGroupIds = (ids) => updateGroup(id, {
-    whatsapp_group_id: ids.length === 0 ? null : ids.length === 1 ? ids[0] : JSON.stringify(ids),
-    wa_group_status: ids.length === 0 ? null : undefined,
-  })
-
   const linkGroup = useMutation({
-    mutationFn: (waGroupId) => {
+    mutationFn: async (waGroupId) => {
       const newIds = [...linkedIds, waGroupId]
-      return setGroupIds(newIds)
+      const value = newIds.length === 1 ? newIds[0] : JSON.stringify(newIds)
+      return updateGroup(id, { whatsapp_group_id: value })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', id] })
       setShowWAPicker(false)
     },
-    onError: (err) => {
-      console.error('linkGroup error:', err)
-      alert('Erro ao vincular grupo: ' + (err?.message || err))
-    },
   })
 
   const unlinkGroup = useMutation({
-    mutationFn: (removeId) => setGroupIds(linkedIds.filter(i => i !== removeId)),
+    mutationFn: async (removeId) => {
+      const newIds = linkedIds.filter(i => i !== removeId)
+      const value = newIds.length === 0 ? null : newIds.length === 1 ? newIds[0] : JSON.stringify(newIds)
+      return updateGroup(id, {
+        whatsapp_group_id: value,
+        ...(newIds.length === 0 && { wa_group_status: null }),
+      })
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['group', id] }),
   })
 

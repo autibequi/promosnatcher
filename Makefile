@@ -1,4 +1,4 @@
-# Promo Hunter — Makefile
+# Promo Snatcher — Makefile
 # Detecta docker compose v2 ou podman-compose
 COMPOSE := $(shell command -v docker 2>/dev/null && docker compose version >/dev/null 2>&1 && echo "docker compose" || command -v podman-compose 2>/dev/null && echo "podman-compose" || echo "docker-compose")
 BACKEND_URL := http://localhost:8000
@@ -6,7 +6,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down build restart logs logs-backend logs-frontend \
+.PHONY: help setup up down build restart logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network
 
 help: ## Mostra este help
@@ -15,6 +15,14 @@ help: ## Mostra este help
 # ---------------------------------------------------------------------------
 # Stack
 # ---------------------------------------------------------------------------
+
+setup: ## Primeira execução: cria .env a partir do .env.example
+	@if [ -f .env ]; then \
+		echo ".env já existe — edite-o para atualizar as configurações"; \
+	else \
+		cp .env.example .env; \
+		echo "✓ .env criado. Preencha os campos OBRIGATÓRIOS (AUTH_PASSWORD, AUTH_SECRET, WAHA_API_KEY, CLOUDFLARE_TOKEN) e rode 'make up'"; \
+	fi
 
 up: ## Build + sobe a stack em background
 	@mkdir -p backend/data

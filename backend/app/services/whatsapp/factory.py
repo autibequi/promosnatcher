@@ -1,7 +1,5 @@
-from .base import WhatsAppAdapter
-from .evolution import EvolutionAdapter
-from .zapi import ZApiAdapter
 from .waha import WAHAAdapter
+from .base import WhatsAppAdapter
 
 
 def get_adapter(
@@ -10,14 +8,7 @@ def get_adapter(
     api_key: str,
     instance: str,
 ) -> WhatsAppAdapter | None:
+    """Retorna o adapter WAHA. provider e instance são mantidos por compatibilidade."""
     if not base_url:
         return None
-    if provider == "waha":
-        return WAHAAdapter(base_url, api_key or "", instance or "default")
-    if not api_key or not instance:
-        return None
-    if provider == "evolution":
-        return EvolutionAdapter(base_url, api_key, instance)
-    if provider == "zapi":
-        return ZApiAdapter(base_url, api_key, instance)
-    return None
+    return WAHAAdapter(base_url, api_key or "", instance or "default")

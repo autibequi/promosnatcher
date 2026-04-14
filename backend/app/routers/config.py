@@ -94,32 +94,7 @@ async def wa_qr(session: Session = Depends(get_session)):
         <script>setTimeout(()=>location.reload(),5000)</script>
         </body></html>""")
 
-    # Evolution fallback
-    if not config.wa_base_url or not config.wa_api_key or not config.wa_instance:
-        raise HTTPException(400, "WhatsApp não configurado")
-
-    url = f"{config.wa_base_url}/instance/connect/{config.wa_instance}"
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url, headers={"apikey": config.wa_api_key})
-        data = r.json()
-    except Exception as e:
-        raise HTTPException(502, f"Erro ao conectar: {e}")
-
-    qr_b64 = data.get("base64", "")
-    status = data.get("instance", {}).get("state", "connecting")
-    if not qr_b64:
-        return HTMLResponse(f"<p>Status: {status}</p><script>setTimeout(()=>location.reload(),5000)</script>")
-
-    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-    <title>WhatsApp QR</title>
-    <style>body{{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}}
-    img{{border:8px solid white;border-radius:8px;max-width:320px}}</style>
-    </head><body>
-    <h2>📱 Conectar WhatsApp</h2>
-    <img src="{qr_b64}" alt="QR Code" />
-    <script>setTimeout(()=>location.reload(),8000)</script>
-    </body></html>""")
+    raise HTTPException(400, "Apenas WAHA suportado. Verifique a configuração.")
 
 
 # ---------------------------------------------------------------------------
@@ -128,30 +103,19 @@ async def wa_qr(session: Session = Depends(get_session)):
 
 @router.get("/wa/status")
 async def wa_status(session: Session = Depends(get_session)):
-    """Status da sessão WA: STOPPED | STARTING | SCAN_QR_CODE | WORKING"""
+    """Status da sessão WAHA: STOPPED | STARTING | SCAN_QR_CODE | WORKING"""
     config = _get_or_create_config(session)
-    if config.wa_provider == "waha":
-        adapter = get_adapter("waha", config.wa_base_url or "",
-                              config.wa_api_key or "", config.wa_instance or "")
-        if not adapter:
-            return {"status": "NOT_CONFIGURED"}
-        return await adapter.get_session_status()
-    # Para outros providers, usa test_connection
-    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
+    adapter = get_adapter("waha", config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
     if not adapter:
         return {"status": "NOT_CONFIGURED"}
-    connected = await adapter.test_connection()
-    return {"status": "WORKING" if connected else "DISCONNECTED",
-            "provider": config.wa_provider}
+    return await adapter.get_session_status()
 
 
 @router.post("/wa/session/logout")
 async def wa_logout_session(session: Session = Depends(get_session)):
-    """Desconecta o WhatsApp (faz logout da sessão WAHA)."""
+    """Desconecta o WhatsApp (logout da sessão WAHA)."""
     config = _get_or_create_config(session)
-    if config.wa_provider != "waha":
-        raise HTTPException(400, "Apenas para WAHA")
     adapter = get_adapter("waha", config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
     if not adapter:
@@ -164,8 +128,6 @@ async def wa_logout_session(session: Session = Depends(get_session)):
 async def wa_start_session(session: Session = Depends(get_session)):
     """Inicia/cria sessão WAHA."""
     config = _get_or_create_config(session)
-    if config.wa_provider != "waha":
-        raise HTTPException(400, "Apenas para WAHA")
     adapter = get_adapter("waha", config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
     if not adapter:
@@ -183,7 +145,7 @@ async def list_wa_groups(session: Session = Depends(get_session)):
     if not adapter:
         raise HTTPException(400, "WhatsApp não configurado")
     if not hasattr(adapter, "list_groups"):
-        raise HTTPException(400, f"Provider '{config.wa_provider}' não suporta listagem de grupos")
+        raise HTTPException(400, "Provider não suporta listagem de grupos")
     groups = await adapter.list_groups()
     prefix = config.wa_group_prefix or ""
     if prefix:
