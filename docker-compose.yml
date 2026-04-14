@@ -34,7 +34,7 @@ services:
     volumes:
       - evolution_data:/evolution/instances
     environment:
-      - SERVER_URL=http://localhost:8181
+      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8181}
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-promohunter123}
       - LANGUAGE=pt-BR
       - DEL_INSTANCE=false
@@ -105,6 +105,15 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: promo-hunter-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - evolution
 
 volumes:
   postgres_data:
