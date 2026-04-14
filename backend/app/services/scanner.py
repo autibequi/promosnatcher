@@ -22,6 +22,23 @@ DEFAULT_TEMPLATE = (
 PRICE_DROP_BADGE = "🚨 *QUEDA DE PREÇO — {group_name}*\n\n"
 
 
+import json as _json
+
+
+def _parse_group_ids(raw: str | None) -> list[str]:
+    """Parseia whatsapp_group_id que pode ser: None, JID simples, ou JSON array."""
+    if not raw:
+        return []
+    raw = raw.strip()
+    if raw.startswith("["):
+        try:
+            ids = _json.loads(raw)
+            return [i for i in ids if i]
+        except Exception:
+            pass
+    return [raw] if raw else []
+
+
 def _within_send_window(start_hour: int, end_hour: int) -> bool:
     tz = pytz.timezone(os.getenv("TZ_NAME", "America/Sao_Paulo"))
     now_hour = datetime.now(tz).hour
@@ -94,22 +111,23 @@ async def scan_group(group_id: int):
             }
 
             wa_adapter = None
-            if config and group.whatsapp_group_id:
+            wa_group_ids = _parse_group_ids(group.whatsapp_group_id)
+            if config and wa_group_ids:
                 wa_adapter = get_adapter(
                     config.wa_provider,
                     config.wa_base_url or "",
                     config.wa_api_key or "",
                     config.wa_instance or "",
                 )
-                # Health check: verifica se o bot ainda está no grupo
+                # Health check no primeiro grupo
                 if wa_adapter:
-                    status = await wa_adapter.check_group(group.whatsapp_group_id)
+                    status = await wa_adapter.check_group(wa_group_ids[0])
                     if status is True:
                         if group.wa_group_status != "ok":
                             group.wa_group_status = "ok"
                             session.add(group)
                     elif status is False:
-                        logger.warning(f"Grupo WA {group.whatsapp_group_id} não encontrado/removido — desabilitando envio")
+                        logger.warning(f"Grupo WA {wa_group_ids[0]} não encontrado/removido — desabilitando envio")
                         group.wa_group_status = "removed"
                         session.add(group)
                         wa_adapter = None  # não envia mais até o grupo ser revalidado
@@ -124,9 +142,10 @@ async def scan_group(group_id: int):
                     sent_at = None
                     if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
                         msg = _format_message(item, group.name, group.message_template, config=config)
-                        ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
-                        if ok:
-                            sent_at = datetime.utcnow()
+                        for gid in wa_group_ids:
+                            ok = await wa_adapter.send_text(gid, msg)
+                            if ok:
+                                sent_at = datetime.utcnow()
 
                     product = Product(
                         group_id=group_id,
@@ -163,9 +182,10 @@ async def scan_group(group_id: int):
                                 msg = _format_message(
                                     item, group.name, group.message_template, is_drop=True, config=config
                                 )
-                                ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
-                                if ok:
-                                    stored.sent_at = datetime.utcnow()
+                                for gid in wa_group_ids:
+                                    ok = await wa_adapter.send_text(gid, msg)
+                                    if ok:
+                                        stored.sent_at = datetime.utcnow()
                             new_count += 1
 
                         # atualiza preço em qualquer mudança

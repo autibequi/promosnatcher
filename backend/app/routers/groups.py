@@ -57,7 +57,8 @@ def update_group(
     group = session.get(Group, group_id)
     if not group:
         raise HTTPException(404, "Group not found")
-    for field, value in data.model_dump(exclude_none=True).items():
+    # exclude_unset=True para permitir enviar null explicitamente (ex: desvincular)
+    for field, value in data.model_dump(exclude_unset=True).items():
         setattr(group, field, value)
     group.updated_at = datetime.utcnow()
     session.add(group)

@@ -48,8 +48,21 @@ export default function GroupDetail() {
     staleTime: 30000,
   })
 
+  // Parseia o campo como array (pode ser JSON array ou ID único)
+  const linkedIds = (() => {
+    const raw = group?.whatsapp_group_id
+    if (!raw) return []
+    if (raw.startsWith('[')) try { return JSON.parse(raw) } catch { return [raw] }
+    return [raw]
+  })()
+
+  const setGroupIds = (ids) => updateGroup(id, {
+    whatsapp_group_id: ids.length === 0 ? null : ids.length === 1 ? ids[0] : JSON.stringify(ids),
+    wa_group_status: ids.length === 0 ? null : undefined,
+  })
+
   const linkGroup = useMutation({
-    mutationFn: (waGroupId) => updateGroup(id, { whatsapp_group_id: waGroupId }),
+    mutationFn: (waGroupId) => setGroupIds([...linkedIds, waGroupId]),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', id] })
       setShowWAPicker(false)
@@ -57,7 +70,7 @@ export default function GroupDetail() {
   })
 
   const unlinkGroup = useMutation({
-    mutationFn: () => updateGroup(id, { whatsapp_group_id: null, wa_group_status: null }),
+    mutationFn: (removeId) => setGroupIds(linkedIds.filter(i => i !== removeId)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['group', id] }),
   })
 
@@ -108,24 +121,38 @@ export default function GroupDetail() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <p className="text-xs text-gray-500 mb-2">Grupo WhatsApp</p>
 
-          {group.whatsapp_group_id ? (
-            /* Já vinculado */
-            <div className="space-y-1.5">
-              <p className={`text-xs font-medium ${
-                group.wa_group_status === 'removed' ? 'text-red-400' : 'text-green-400'
-              }`}>
-                {group.wa_group_status === 'removed' ? '⚠️ Removido' : '📱 Vinculado'}
-              </p>
-              <p className="text-xs text-gray-500 font-mono break-all">{group.whatsapp_group_id}</p>
+          {linkedIds.length > 0 && (
+            /* Grupos vinculados */
+            <div className="space-y-1.5 mb-2">
+              {linkedIds.map(gid => {
+                const waGroup = waGroups.find(g => g.id === gid)
+                return (
+                  <div key={gid} className="flex items-center justify-between bg-gray-800 px-2 py-1.5 rounded-lg">
+                    <div className="min-w-0">
+                      <p className="text-xs text-green-400 font-medium truncate">
+                        {waGroup?.name || gid.slice(0, 20) + '...'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { if (confirm('Remover este grupo?')) unlinkGroup.mutate(gid) }}
+                      disabled={unlinkGroup.isPending}
+                      className="text-gray-500 hover:text-red-400 transition-colors ml-2 flex-shrink-0 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )
+              })}
               <button
-                onClick={() => { if (confirm('Desvincular grupo WA?')) unlinkGroup.mutate() }}
-                disabled={unlinkGroup.isPending}
-                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                onClick={() => setShowWAPicker(true)}
+                className="text-xs text-gray-500 hover:text-green-400 transition-colors"
               >
-                🔗 Desvincular
+                + Adicionar grupo
               </button>
             </div>
-          ) : showWAPicker ? (
+          )}
+
+          {(showWAPicker || (group.whatsapp_group_id && showWAPicker)) ? (
             /* Seletor de grupos */
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -161,10 +188,10 @@ export default function GroupDetail() {
                 )}
               </div>
             </div>
-          ) : (
-            /* Não vinculado */
+          ) : !group.whatsapp_group_id && (
+            /* Nenhum grupo vinculado */
             <div className="space-y-2">
-              <p className="text-xs text-gray-600">Não vinculado</p>
+              <p className="text-xs text-gray-600">Nenhum grupo vinculado</p>
               <button
                 onClick={() => setShowWAPicker(true)}
                 className="text-xs bg-green-800 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors w-full"
