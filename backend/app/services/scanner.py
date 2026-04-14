@@ -64,6 +64,8 @@ async def scan_group(group_id: int):
         session.refresh(job)
 
         try:
+            config = session.get(AppConfig, 1)
+
             ml_results = await mercadolivre.search(
                 group.search_prompt,
                 group.min_val,
@@ -84,7 +86,6 @@ async def scan_group(group_id: int):
                 ).all()
             }
 
-            config = session.get(AppConfig, 1)
             wa_adapter = None
             if config and group.whatsapp_group_id:
                 wa_adapter = get_adapter(
