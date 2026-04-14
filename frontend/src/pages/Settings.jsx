@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getConfig, updateConfig, testWA, getWAGroups, createWAGroupDirect,
-         getWAStatus, startWASession } from '../api'
+         getWAStatus, startWASession, logoutWASession } from '../api'
 
 export default function Settings() {
   const qc = useQueryClient()
@@ -70,6 +70,14 @@ export default function Settings() {
   const startSession = useMutation({
     mutationFn: startWASession,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['waStatus'] }),
+  })
+
+  const logout = useMutation({
+    mutationFn: logoutWASession,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['waStatus'] })
+      qc.invalidateQueries({ queryKey: ['waGroups'] })
+    },
   })
 
   const set = (f) => (e) => setForm(v => ({ ...v, [f]: e.target.value }))
@@ -186,6 +194,16 @@ export default function Settings() {
               disabled={startSession.isPending}
               className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm">
               {startSession.isPending ? '⏳ Iniciando...' : '▶ Iniciar sessão'}
+            </button>
+          )}
+
+          {/* Logout quando WORKING */}
+          {waStatus?.status === 'WORKING' && (
+            <button type="button"
+              onClick={() => { if (window.confirm('Desconectar o WhatsApp?')) logout.mutate() }}
+              disabled={logout.isPending}
+              className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors">
+              {logout.isPending ? '⏳ Desconectando...' : '🚪 Desconectar WhatsApp'}
             </button>
           )}
 

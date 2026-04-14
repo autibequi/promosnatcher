@@ -146,6 +146,20 @@ async def wa_status(session: Session = Depends(get_session)):
             "provider": config.wa_provider}
 
 
+@router.post("/wa/session/logout")
+async def wa_logout_session(session: Session = Depends(get_session)):
+    """Desconecta o WhatsApp (faz logout da sessão WAHA)."""
+    config = _get_or_create_config(session)
+    if config.wa_provider != "waha":
+        raise HTTPException(400, "Apenas para WAHA")
+    adapter = get_adapter("waha", config.wa_base_url or "",
+                          config.wa_api_key or "", config.wa_instance or "")
+    if not adapter:
+        raise HTTPException(400, "WAHA não configurado")
+    ok = await adapter.logout_session()
+    return {"logged_out": ok}
+
+
 @router.post("/wa/session/start")
 async def wa_start_session(session: Session = Depends(get_session)):
     """Inicia/cria sessão WAHA."""

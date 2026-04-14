@@ -102,6 +102,17 @@ class WAHAAdapter(WhatsAppAdapter):
             logger.warning(f"WAHA get_qr_code: {e}")
             return None
 
+    async def logout_session(self) -> bool:
+        """Desconecta o WhatsApp (logout da sessão)."""
+        url = f"{self.base_url}/api/sessions/{self.session}/logout"
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.post(url, headers=self._headers)
+            return r.status_code in (200, 201)
+        except Exception as e:
+            logger.error(f"WAHA logout_session: {e}")
+            return False
+
     async def start_session(self) -> bool:
         """Cria ou inicia a sessão WAHA."""
         # Tenta criar primeiro
