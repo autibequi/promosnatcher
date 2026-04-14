@@ -1,7 +1,7 @@
 services:
   waha:
     image: devlikeapro/waha
-    container_name: promo-hunter-waha
+    container_name: promo-snatcher-waha
     ports:
       - "3200:3000"
     volumes:
@@ -20,7 +20,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: promo-hunter-backend
+    container_name: promo-snatcher-backend
     ports:
       - "8000:8000"
     volumes:
@@ -30,12 +30,12 @@ services:
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
       - TZ_NAME=${TZ_NAME:-America/Sao_Paulo}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-      - WAHA_URL=http://promo-hunter-waha:3000
+      - WAHA_URL=http://promo-snatcher-waha:3000
       - WAHA_SESSION=${WAHA_SESSION:-default}
       - WAHA_API_KEY=${WAHA_API_KEY:-}
       - AUTH_USERNAME=${AUTH_USERNAME:-admin}
       - AUTH_PASSWORD=${AUTH_PASSWORD:-}
-      - AUTH_SECRET=${AUTH_SECRET:-promo-hunter-secret-change-me}
+      - AUTH_SECRET=${AUTH_SECRET:-promo-snatcher-secret-change-me}
     depends_on:
       waha:
         condition: service_healthy
@@ -49,7 +49,7 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: promo-hunter-frontend
+    container_name: promo-snatcher-frontend
     ports:
       - "6060:80"
       - "6061:8081"
@@ -62,7 +62,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: promo-hunter-cloudflared
+    container_name: promo-snatcher-cloudflared
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
     restart: unless-stopped
     depends_on:

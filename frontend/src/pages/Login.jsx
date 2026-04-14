@@ -28,7 +28,7 @@ export default function Login({ onLogin }) {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <span className="text-4xl">🔥</span>
-          <h1 className="text-2xl font-bold text-white mt-2">Promo Hunter</h1>
+          <h1 className="text-2xl font-bold text-white mt-2">Promo Snatcher</h1>
           <p className="text-gray-500 text-sm mt-1">Entre para continuar</p>
         </div>
         <form onSubmit={submit} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">

@@ -89,7 +89,7 @@ print('  scans disparados')"
 # ---------------------------------------------------------------------------
 
 clean: ## Remove containers, imagens e volume de dados (DESTRUTIVO)
-	@echo "AVISO: isso remove containers, imagens e o volume promo-hunter-data"
+	@echo "AVISO: isso remove containers, imagens e o volume promo-snatcher-data"
 	@read -p "Confirma? [y/N] " ans && [ "$$ans" = "y" ] || exit 1
 	$(COMPOSE) down --volumes --remove-orphans
 	$(COMPOSE) down --rmi local 2>/dev/null || true
@@ -102,10 +102,10 @@ fix-network: ## Reaplica aliases DNS da rede Podman (rodar se 502 aparecer)
 	@python3 -c "\
 import docker, time; \
 c = docker.DockerClient(base_url='unix:///run/user/host/podman/podman.sock'); \
-net = c.networks.get('promo-hunter'); \
-aliases = {'promo-hunter-backend':'backend','promo-hunter-evolution':'evolution','promo-hunter-postgres':'postgres','promo-hunter-redis':'redis'}; \
+net = c.networks.get('promo-snatcher'); \
+aliases = {'promo-snatcher-backend':'backend','promo-snatcher-evolution':'evolution','promo-snatcher-postgres':'postgres','promo-snatcher-redis':'redis'}; \
 [([net.disconnect(c.containers.get(n), force=True) if True else None, net.connect(c.containers.get(n), aliases=[a])] if c.containers.get(n) else None) for n,a in aliases.items() if c.containers.get(n) is not None]; \
-fe = c.containers.get('promo-hunter-frontend'); \
+fe = c.containers.get('promo-snatcher-frontend'); \
 [net.disconnect(fe, force=True), net.connect(fe), fe.exec_run('nginx -s reload')]; \
 print('Aliases reconfigurados')"; \
 	@echo "Testando..."

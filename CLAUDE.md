@@ -1,4 +1,4 @@
-# Promo Hunter — CLAUDE.md
+# Promo Snatcher — CLAUDE.md
 
 Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos WhatsApp.
 
@@ -8,7 +8,7 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 |--------|-----------|
 | Backend | FastAPI + SQLModel + SQLite + APScheduler |
 | Scrapers | httpx + BeautifulSoup (ML), crawl4ai/Chromium (Amazon) |
-| WhatsApp | Evolution API v2 (self-hosted) ou Z-API (SaaS) |
+| WhatsApp | WAHA (self-hosted, NOWEB engine) |
 | Frontend | React 18 + Vite + TailwindCSS + Recharts |
 | Proxy | nginx (frontend + proxy /api/ → backend) |
 | Infra | Podman / Docker Compose + Cloudflare Tunnel |
@@ -18,6 +18,8 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 
 ```
 /workspace/target/
+├── assets/
+│   └── logo.png               # Foto padrão de grupos WA
 ├── backend/
 │   ├── app/
 │   │   ├── models.py          # SQLModel: Group, Product, PriceHistory, ScanJob, AppConfig
@@ -25,20 +27,21 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 │   │   ├── database.py        # engine, create_db_and_tables(), migrate_db()
 │   │   ├── main.py            # FastAPI app, lifespan, _configure_defaults()
 │   │   ├── routers/
-│   │   │   ├── auth.py        # POST /api/auth/login
+│   │   │   ├── auth.py        # POST /api/auth/login (JWT)
 │   │   │   ├── groups.py      # CRUD + scan + create-wa-group
 │   │   │   ├── products.py    # list, delete, send, GET /history
 │   │   │   ├── scan.py        # jobs, status
-│   │   │   └── config.py      # AppConfig + GET /wa/qr
+│   │   │   └── config.py      # AppConfig + /wa/qr + /wa/status + /wa/groups
 │   │   └── services/
 │   │       ├── scanner.py     # scan_group(): ML + Amazon + dedup + WA + price drop
 │   │       ├── mercadolivre.py # httpx + BS4 + ML OAuth fallback
-│   │       ├── amazon.py      # crawl4ai AsyncWebCrawler
+│   │       ├── amazon.py      # crawl4ai AsyncWebCrawler (sem wait_for)
 │   │       ├── auth.py        # JWT create/verify, require_auth dependency
 │   │       └── whatsapp/
 │   │           ├── base.py    # WhatsAppAdapter ABC
-│   │           ├── evolution.py  # EvolutionAdapter (check_group, create_group com retry)
-│   │           ├── zapi.py    # ZApiAdapter
+│   │           ├── waha.py    # WAHAAdapter — provider principal
+│   │           ├── evolution.py  # EvolutionAdapter (legado)
+│   │           ├── zapi.py    # ZApiAdapter (legado)
 │   │           └── factory.py
 │   ├── data/                  # SQLite DB (gitignored, .gitkeep presente)
 │   ├── requirements.txt
@@ -52,12 +55,12 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 │   │   │   ├── Dashboard.jsx  # Lista de grupos
 │   │   │   ├── GroupDetail.jsx # Produtos + histórico + criar grupo WA
 │   │   │   ├── GroupForm.jsx  # Criar/editar grupo (inclui message_template)
-│   │   │   └── Settings.jsx   # WA config + ML OAuth + send window
+│   │   │   └── Settings.jsx   # WAHA config + status/QR + grupos + ML OAuth + scan
 │   │   └── components/
 │   │       ├── GroupCard.jsx  # Card com ScanBadge + wa_group_status
 │   │       ├── ProductCard.jsx # Card + gráfico histórico Recharts
 │   │       └── ScanStatus.jsx # Scheduler status
-│   ├── nginx.conf             # Proxy /api/ + /evolution/ + resolver Podman
+│   ├── nginx.conf             # Proxy /api/ + resolver Podman + /evolution/
 │   └── Dockerfile             # multi-stage node:20 → nginx:alpine
 ├── docker-compose.yml
 ├── Makefile
@@ -68,25 +71,16 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 ## Comandos rápidos
 
 ```bash
-# Subir stack completa
-make up
-
-# Logs
-make logs           # todos
-make logs-backend   # só backend
-make logs-frontend  # só frontend
-
-# Testar saúde
-make test
-
-# Scan manual de todos os grupos
-make scan
-
-# Se aparecer 502 (aliases Podman caindo)
-make fix-network
-
-# Shell no backend
-make shell
+make up              # build + sobe em background
+make down            # para tudo
+make restart         # down + up
+make logs            # todos os logs (follow)
+make test            # testa health + endpoints via curl
+make status          # containers + próximo scan
+make scan            # dispara scan manual em todos os grupos
+make shell           # bash no backend
+make fix-network     # reaplica aliases Podman (rodar se 502 aparecer)
+make clean           # remove containers + imagens + volume (pede confirmação)
 ```
 
 ## Variáveis de ambiente (.env)
@@ -94,25 +88,22 @@ make shell
 ```env
 # Auth JWT
 AUTH_USERNAME=admin
-AUTH_PASSWORD=senha-aqui          # deixar vazio desabilita auth
+AUTH_PASSWORD=senha-aqui          # vazio = desabilita auth
 AUTH_SECRET=string-aleatoria-longa
 AUTH_TOKEN_HOURS=72
 
 # Scan
-SCAN_INTERVAL=30                  # minutos entre scans automáticos
-TZ_NAME=America/Sao_Paulo         # fuso para send window
+SCAN_INTERVAL=30                  # minutos
+TZ_NAME=America/Sao_Paulo
 
-# WhatsApp / Evolution API
-EVOLUTION_API_KEY=promohunter123
-EVOLUTION_DB_PASS=evolution123
-EVOLUTION_INSTANCE=promo-hunter
-EVOLUTION_SERVER_URL=http://localhost:8181  # ou https://z-evo.seu-dominio.com
+# WAHA (WhatsApp)
+WAHA_SESSION=default
+WAHA_API_KEY=promohunter123       # obrigatório — WAHA exige key
+WAHA_DASHBOARD_USERNAME=admin
+WAHA_DASHBOARD_PASSWORD=promohunter123
 
 # Cloudflare Tunnel
 CLOUDFLARE_TOKEN=eyJ...
-
-# ML OAuth (opcional — sem isso usa scraping HTML)
-# ML_CLIENT_ID e ML_CLIENT_SECRET via Settings no frontend
 ```
 
 ## Portas
@@ -121,35 +112,45 @@ CLOUDFLARE_TOKEN=eyJ...
 |---------|-------------|---------|
 | Backend API | 8000 | via nginx |
 | Frontend nginx | 6060 | `snatcher.autibequi.com` |
-| Evolution Manager | 6061 | (nginx porta 8081) |
-| Evolution API | 8181 | `snatcher.autibequi.com/evolution/` |
-| Evolution Manager | — | `snatcher.autibequi.com/manager` |
+| WAHA | 3200 | interno |
+| WAHA Dashboard | 3200 | `localhost:3200` |
 
 ## Modelo de dados
+
+### AppConfig (singleton id=1)
+- `wa_provider` — `waha` (default) | `evolution` | `zapi`
+- `wa_base_url`, `wa_api_key`, `wa_instance`
+- `wa_group_prefix` — prefixo dos grupos WA (default `Snatcher`)
+- `send_start_hour / send_end_hour` — janela de envio (default 8-22h)
+- `ml_client_id / ml_client_secret` — credenciais ML OAuth
+- `amz_tracking_id / ml_affiliate_tool_id` — IDs afiliado
+- `global_interval` — intervalo de scan global
 
 ### Group
 - `search_prompt` — busca no ML/Amazon
 - `min_val / max_val` — faixa de preço
 - `whatsapp_group_id` — JID do grupo WA (`120363xxx@g.us`)
 - `wa_group_status` — `ok | removed | not_found` (health check no scanner)
-- `message_template` — template customizável com `{title} {price} {url} {source} {group_name}`
-- `scan_interval` — minutos entre scans (override do global)
+- `message_template` — template com `{title} {price} {url} {source} {group_name}`
+- `scan_interval` — minutos (override do global)
 
-### Product
+### Product / PriceHistory
 - `source` — `mercadolivre | amazon`
-- `price` — preço atual (atualizado em drops)
-- `sent_at` — quando foi enviado no WA (null = não enviado)
+- `price` — preço atual (atualizado em qualquer mudança)
+- `sent_at` — quando enviado no WA
+- PriceHistory: `product_id`, `price`, `recorded_at` — ponto histórico em toda mudança
 
-### PriceHistory
-- `product_id` → Product
-- `price`, `recorded_at` — ponto histórico (registrado em toda mudança)
+## WAHA — notas importantes
 
-### AppConfig (singleton id=1)
-- `wa_provider` — `evolution | zapi`
-- `wa_base_url`, `wa_api_key`, `wa_instance`
-- `send_start_hour / send_end_hour` — janela de envio WA (default 8-22h)
-- `ml_client_id / ml_client_secret` — credenciais ML OAuth
-- `global_interval` — intervalo de scan global
+- **Engine**: NOWEB (Node.js WebSocket) — mais leve, sem Chrome
+  - WEBJS suporta foto de grupo mas **não cria grupos** → usar NOWEB
+- **API Key obrigatória**: WAHA gera chave aleatória no boot se não definida. Definir `WAHA_API_KEY` no compose para chave fixa
+- **Sessão**: `POST /api/sessions` + `POST /api/sessions/default/start`
+- **Status**: STOPPED → STARTING → SCAN_QR_CODE → WORKING
+- **QR**: `GET /api/{session}/auth/qr?format=image` (NOWEB suporta)
+- **Grupos**: endpoint retorna dict `{jid: groupObject}`, não lista
+- **Prefixo**: grupos criados como `{wa_group_prefix} - {nome}`, lista filtra pelo prefixo
+- **Volume corrompido**: trocar entre NOWEB/WEBJS corrompe o volume — apagar e recriar
 
 ## Scanner — fluxo principal
 
@@ -157,13 +158,13 @@ CLOUDFLARE_TOKEN=eyJ...
 scan_group(group_id)
   ├── config = AppConfig
   ├── ml_results = mercadolivre.search()    # API oficial ou scraping HTML
-  ├── amz_results = amazon.search()         # crawl4ai + Chromium
+  ├── amz_results = amazon.search()         # crawl4ai + Chromium (sem wait_for)
   ├── existing = {url: Product} para dedup
-  ├── wa_adapter.check_group() → wa_group_status
+  ├── wa_adapter.check_group() → wa_group_status (ok/removed)
   └── para cada result:
       ├── novo: insert + PriceHistory + envio WA (se dentro da send window)
       └── existente com queda ≥10%:
-              → insert PriceHistory + re-envio com badge 🚨 + update price
+              → PriceHistory + re-envio com badge 🚨 + update price
 ```
 
 ## Scrapers
@@ -171,68 +172,63 @@ scan_group(group_id)
 ### Mercado Livre
 - URL: `https://lista.mercadolivre.com.br/{slug}_PriceRange_{min}-{max}_NoIndex_True`
 - Parser: BS4, seletor `div.poly-card--grid-card`
-- URL do produto: ID `MLB\d+` extraído do HTML → `https://www.mercadolivre.com.br/p/{ID}`
-- OAuth: se `ml_client_id` configurado usa `GET /sites/MLB/search` com Bearer token
+- URL do produto: regex `MLB\d+` → `https://www.mercadolivre.com.br/p/{ID}`
+- Fallback → scraping HTML quando OAuth não configurado
 
 ### Amazon
 - crawl4ai `AsyncWebCrawler` com Chromium headless
-- `simulate_user=True`, `magic=True`, `--disable-blink-features=AutomationControlled`
+- `simulate_user=True`, `magic=True`, `--no-sandbox`, `--disable-dev-shm-usage`
+- **Sem `wait_for`** — `delay_before_return_html=2.0` suficiente
 - Seletores: `h2 span` (título), `a[href*="/dp/"]` (link), `.a-price-whole` (preço)
-- Sem `wait_for` — `delay_before_return_html=2.0` é suficiente
 
-## Evolution API — notas importantes
+## Auth
 
-- **Versão WA hardcoded**: Evolution v2.2.3 tem `CONFIG_SESSION_PHONE_VERSION=2.3000.1015901307` (desatualizada). Override no compose: `CONFIG_SESSION_PHONE_VERSION=2.3000.1035194821`
-- **Redis obrigatório**: v2 usa Redis para pub/sub de QR codes
-- **PostgreSQL obrigatório**: v2 não suporta SQLite
-- **create_group**: Evolution valida participantes via `onWhatsApp()` — pode dar timeout em sessões novas. O endpoint usa BackgroundTask e retorna 202.
-- **check_group**: `GET /group/findGroupInfos/{instance}?groupJid=xxx` — 200=ok, 404=removido
-- **QR code**: `GET /api/config/wa/qr` retorna HTML com QR para escanear
+- `POST /api/auth/login` → JWT 72h
+- Todas rotas protegidas exceto `/api/health` e `/api/auth/login` e `/api/config/wa/qr`
+- `/api/config/wa/qr` é público (HTML com QR — sem dados sensíveis)
+- `AUTH_PASSWORD` vazio = desabilitado
 
 ## nginx — gotchas
 
-- Resolver Podman: `resolver 10.89.4.1 valid=10s` (Docker usa `127.0.0.11`)
-- Proxy com variável: `set $backend http://promo-hunter-backend:8000; proxy_pass $backend$request_uri;` — necessário para DNS dinâmico
+- Resolver Podman: `resolver 10.89.4.1 valid=10s` (**não** `127.0.0.11` do Docker)
+- Proxy com variável: `set $backend http://promo-snatcher-backend:8000; proxy_pass $backend$request_uri`
 - Sem variável: nginx cacheia IP no startup, 502 quando container reinicia
 
 ## Podman — gotchas
 
-- Aliases de rede se perdem quando containers reiniciam
-- `make fix-network` reaplica aliases (temporário)
-- Solução permanente: `container_name` explícito + nginx resolve pelo nome completo
-
-## Auth
-
-- `POST /api/auth/login` — retorna JWT 72h
-- Todas as rotas protegidas exceto `/api/health` e `/api/auth/login`
-- `AUTH_PASSWORD` vazio = auth desabilitado
-- Frontend: token em `localStorage.getItem('ph_token')`, interceptor axios injeta `Authorization: Bearer`
+- Aliases de rede se perdem quando containers reiniciam → `make fix-network`
+- Container names explícitos no compose (`container_name: promo-snatcher-*`) resolvem DNS sem alias
+- `resolver 10.89.4.1` no nginx garante resolução dinâmica
 
 ## Cloudflare Tunnel
 
-- Container: `promo-hunter-cloudflared`
-- Rotas configuradas em: Zero Trust → Networks → Tunnels → Promo Snatcher → Rotas de aplicativo publicadas
-- DNS CNAMEs precisam ser criados manualmente (nova UI não cria automaticamente)
-- `snatcher.autibequi.com` → `http://promo-hunter-frontend:80`
-- Subdomínios de 2 níveis (ex: `promo.snatcher.autibequi.com`) não são cobertos pelo wildcard free
+- Container: `promo-snatcher-cloudflared`
+- Rotas em: Zero Trust → Networks → Tunnels → Promo Snatcher → Rotas de aplicativo publicadas
+- DNS CNAMEs criados manualmente (nova UI não cria auto)
+- `snatcher.autibequi.com` → `http://promo-snatcher-frontend:80`
 
-## Roadmap (Obsidian: `/workspace/obsidian/projects/ongoing/promo-hunter/`)
+## Roadmap (Obsidian: `/workspace/obsidian/projects/ongoing/promo-snatcher/`)
 
-### Concluído (Semana 1-2)
+### Concluído
 - [x] MVP: CRUD grupos, scraping ML, WA adapter, scheduler
-- [x] Amazon via crawl4ai
+- [x] Amazon via crawl4ai (fix: sem wait_for)
 - [x] Price drop alerts (≥10%)
-- [x] Templates de mensagem
-- [x] Histórico de preços + gráfico Recharts
+- [x] Templates de mensagem com variáveis
+- [x] Histórico de preços + gráfico Recharts inline
 - [x] Agendamento por horário (send window)
 - [x] Auth ML OAuth com fallback HTML
-- [x] Docker + Makefile
-- [x] Cloudflare Tunnel
-- [x] Auth JWT
-- [x] Auto-criação grupo WA + health check
+- [x] Docker + Makefile + healthchecks
+- [x] Cloudflare Tunnel (snatcher.autibequi.com)
+- [x] Auth JWT (login page + rotas protegidas)
+- [x] WAHA como provider principal (migrou de Evolution API)
+- [x] Gestão de grupos WA: criar (com prefixo), listar, filtrar, vincular
+- [x] Foto de grupo (NOWEB não suporta; WEBJS cria grupos — trade-off atual)
+- [x] Logout WA (sessão WAHA)
+- [x] Health check wa_group_status no scanner
+- [x] Afiliados ML + Amazon nos links enviados
 
-### Próximo (Semana 3-4)
-- [ ] Envio de imagem WA
+### Próximo
+- [ ] Envio de imagem WA nas mensagens
 - [ ] Multi-tenant + auth por usuário
 - [ ] PostgreSQL para o backend (hoje SQLite)
 - [ ] Celery/RQ para scans assíncronos

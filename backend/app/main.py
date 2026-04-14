@@ -57,8 +57,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Promo Hunter",
-    description="Varredor de preços + gerenciamento de grupos WhatsApp",
+    title="Promo Snatcher",
+    description="Varredor automático de preços com envio para grupos WhatsApp",
     version="0.1.0",
     lifespan=lifespan,
 )

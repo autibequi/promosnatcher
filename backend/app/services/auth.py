@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-SECRET_KEY = os.getenv("AUTH_SECRET", "promo-hunter-secret-change-me")
+SECRET_KEY = os.getenv("AUTH_SECRET", "promo-snatcher-secret-change-me")
 ALGORITHM = "HS256"
 EXPIRE_HOURS = int(os.getenv("AUTH_TOKEN_HOURS", "72"))
 

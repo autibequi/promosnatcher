@@ -1,4 +1,4 @@
-# Promo Hunter
+# Promo Snatcher
 
 Varredor de preços (Mercado Livre + Amazon) com gerenciamento de grupos WhatsApp.
 
