@@ -21,10 +21,12 @@ def _parse_results(html: str, min_val: float, max_val: float) -> list[dict]:
     results = []
 
     for item in items[:20]:
-        title_el = item.select_one("h2 a span")
+        # Título: Amazon removeu <a> dentro do <h2> — usar h2 span direto
+        title_el = item.select_one("h2 span") or item.select_one(".a-text-normal")
         price_whole = item.select_one(".a-price-whole")
         price_frac = item.select_one(".a-price-fraction")
-        link_el = item.select_one("h2 a")
+        # Link: busca âncora com href /dp/ (link do produto)
+        link_el = item.select_one('a[href*="/dp/"]')
         img_el = item.select_one(".s-image")
 
         if not title_el or not price_whole or not link_el:
