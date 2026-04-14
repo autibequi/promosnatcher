@@ -14,6 +14,10 @@ class WhatsAppAdapter(ABC):
     async def test_connection(self) -> bool:
         """Verifica se a conexão com o provider está ok."""
 
+    async def send_image(self, phone: str, image_url: str, caption: str = "") -> bool:
+        """Envia imagem com legenda. Retorna False se não suportado."""
+        return False
+
     async def check_group(self, group_id: str) -> bool | None:
         """
         Verifica se o grupo ainda existe e o bot é membro.

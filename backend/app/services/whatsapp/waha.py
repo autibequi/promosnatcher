@@ -17,6 +17,22 @@ class WAHAAdapter(WhatsAppAdapter):
     # Core (required by base)
     # -------------------------------------------------------------------------
 
+    async def send_image(self, phone: str, image_url: str, caption: str = "") -> bool:
+        """Envia imagem com legenda. image_url pode ser http/https."""
+        url = f"{self.base_url}/api/sendImage"
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.post(url, json={
+                    "session": self.session,
+                    "chatId": phone,
+                    "file": {"url": image_url},
+                    "caption": caption,
+                }, headers=self._headers)
+                return r.status_code in (200, 201)
+        except Exception as e:
+            logger.error(f"WAHA send_image error: {e}")
+            return False
+
     async def send_text(self, phone: str, text: str) -> bool:
         url = f"{self.base_url}/api/sendText"
         try:

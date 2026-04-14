@@ -91,8 +91,14 @@ async def send_product(product_id: int, session: Session = Depends(get_session))
     msg = _format_message(item, group.name, group.message_template, config=config)
 
     sent = False
+    img = product.image_url
     for gid in wa_group_ids:
-        ok = await adapter.send_text(gid, msg)
+        if img:
+            ok = await adapter.send_image(gid, img, msg)
+            if not ok:
+                ok = await adapter.send_text(gid, msg)
+        else:
+            ok = await adapter.send_text(gid, msg)
         if ok:
             sent = True
 

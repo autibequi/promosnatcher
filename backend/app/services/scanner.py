@@ -12,14 +12,12 @@ from .whatsapp.factory import get_adapter
 logger = logging.getLogger(__name__)
 
 DEFAULT_TEMPLATE = (
-    "🔥 *PROMOÇÃO — {group_name}*\n\n"
-    "📦 {title}\n"
-    "💰 {price}\n"
-    "🏪 {source}\n\n"
+    "*{title}*\n"
+    "💰 {price}\n\n"
     "🔗 {url}"
 )
 
-PRICE_DROP_BADGE = "🚨 *QUEDA DE PREÇO — {group_name}*\n\n"
+PRICE_DROP_BADGE = "🚨 *QUEDA DE PREÇO*\n\n"
 
 
 import json as _json
@@ -142,8 +140,14 @@ async def scan_group(group_id: int):
                     sent_at = None
                     if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
                         msg = _format_message(item, group.name, group.message_template, config=config)
+                        img = item.get("image_url")
                         for gid in wa_group_ids:
-                            ok = await wa_adapter.send_text(gid, msg)
+                            if img:
+                                ok = await wa_adapter.send_image(gid, img, msg)
+                                if not ok:  # fallback para texto
+                                    ok = await wa_adapter.send_text(gid, msg)
+                            else:
+                                ok = await wa_adapter.send_text(gid, msg)
                             if ok:
                                 sent_at = datetime.utcnow()
 
@@ -182,8 +186,14 @@ async def scan_group(group_id: int):
                                 msg = _format_message(
                                     item, group.name, group.message_template, is_drop=True, config=config
                                 )
+                                img = item.get("image_url")
                                 for gid in wa_group_ids:
-                                    ok = await wa_adapter.send_text(gid, msg)
+                                    if img:
+                                        ok = await wa_adapter.send_image(gid, img, msg)
+                                        if not ok:
+                                            ok = await wa_adapter.send_text(gid, msg)
+                                    else:
+                                        ok = await wa_adapter.send_text(gid, msg)
                                     if ok:
                                         stored.sent_at = datetime.utcnow()
                             new_count += 1
