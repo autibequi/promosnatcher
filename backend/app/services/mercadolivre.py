@@ -1,6 +1,9 @@
 import re
 import httpx
 import logging
+from bs4 import BeautifulSoup
+
+_MLB_RE = re.compile(r"(MLB\d+)")
 
 logger = logging.getLogger(__name__)
 
@@ -27,38 +30,32 @@ def _build_url(query: str, min_val: float, max_val: float) -> str:
 
 
 def _parse(html: str, min_val: float, max_val: float) -> list[dict]:
-    """
-    Extrai produtos do HTML da página de listagem do ML.
-    Estrutura: poly-card com poly-component__title e andes-money-amount__fraction.
-    """
+    soup = BeautifulSoup(html, "html.parser")
+    # ML usa div.poly-card--grid-card (não li)
+    cards = soup.select("div.poly-card--grid-card")
     results = []
 
-    # Extrair blocos de produto (cada poly-card)
-    cards = re.split(r'class="poly-card', html)
-
-    for card in cards[1:]:  # pula o primeiro (antes do primeiro card)
-        # Título e URL
-        title_match = re.search(
-            r'class="poly-component__title"[^>]*>([^<]+)</a>', card
-        )
-        link_match = re.search(r'href="(https://www\.mercadolivre\.com\.br/[^"]+)"', card)
-
-        if not title_match or not link_match:
+    for card in cards:
+        title_el = card.select_one(".poly-component__title")
+        if not title_el:
             continue
 
-        title = title_match.group(1).strip()
-        url = link_match.group(1).split("?")[0]  # remove tracking params
+        title = title_el.get_text(strip=True)
 
-        # Preço — inteiro + centavos
-        price_int = re.search(r'andes-money-amount__fraction[^>]*>(\d[\d.]*)<', card)
-        price_cents = re.search(r'andes-money-amount__cents[^>]*>(\d+)<', card)
+        # URL: ML usa tracking links — extrai ID do produto do HTML do card
+        m = _MLB_RE.search(str(card))
+        if not m:
+            continue
+        url = f"https://www.mercadolivre.com.br/p/{m.group(1)}"
 
-        if not price_int:
+        price_int_el = card.select_one(".andes-money-amount__fraction")
+        if not price_int_el:
             continue
 
         try:
-            int_part = price_int.group(1).replace(".", "")
-            cents_part = price_cents.group(1) if price_cents else "00"
+            int_part = price_int_el.get_text(strip=True).replace(".", "")
+            price_cents_el = card.select_one(".andes-money-amount__cents")
+            cents_part = price_cents_el.get_text(strip=True) if price_cents_el else "00"
             price = float(f"{int_part}.{cents_part}")
         except ValueError:
             continue
@@ -66,20 +63,17 @@ def _parse(html: str, min_val: float, max_val: float) -> list[dict]:
         if not (min_val <= price <= max_val):
             continue
 
-        # Imagem
-        img_match = re.search(r'poly-card__portada.*?src="([^"]+)"', card, re.DOTALL)
-        img_url = img_match.group(1) if img_match else None
+        img_el = card.select_one(".poly-card__portada img")
+        img_url = (img_el.get("src") or img_el.get("data-src")) if img_el else None
 
         if not any(r["url"] == url for r in results):
-            results.append(
-                {
-                    "title": title,
-                    "price": price,
-                    "url": url,
-                    "image_url": img_url,
-                    "source": "mercadolivre",
-                }
-            )
+            results.append({
+                "title": title,
+                "price": price,
+                "url": url,
+                "image_url": img_url,
+                "source": "mercadolivre",
+            })
 
         if len(results) >= 20:
             break
