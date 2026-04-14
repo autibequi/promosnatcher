@@ -44,7 +44,7 @@ export default function GroupDetail() {
   const { data: waGroups = [], isLoading: loadingWAGroups } = useQuery({
     queryKey: ['waGroups'],
     queryFn: getWAGroups,
-    enabled: showWAPicker,
+    enabled: showWAPicker || linkedIds.length > 0,
     staleTime: 30000,
   })
 
