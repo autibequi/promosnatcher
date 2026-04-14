@@ -72,7 +72,17 @@ export default function ProductCard({ product }) {
             >
               📈 {showHistory ? 'Fechar' : 'Histórico'}
             </button>
-            {!product.sent_at && (
+            {product.sent_at ? (
+              <button
+                onClick={() => {
+                  if (window.confirm('Reenviar este produto para o grupo WA?')) send.mutate()
+                }}
+                disabled={send.isPending}
+                className="text-xs bg-gray-700 hover:bg-green-800 disabled:opacity-50 text-white px-3 py-1 rounded-lg transition-colors"
+              >
+                {send.isPending ? '⏳' : '🔁 Reenviar'}
+              </button>
+            ) : (
               <button
                 onClick={() => send.mutate()}
                 disabled={send.isPending}
