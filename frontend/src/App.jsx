@@ -18,7 +18,7 @@ function AdminNav({ onLogout }) {
     <nav className="border-b border-gray-800 bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
         <span className="text-green-400 font-bold text-lg mr-4">🔥 Promo Snatcher</span>
-        <NavLink to="/admin" end className={link}>Grupos</NavLink>
+        <NavLink to="/admin" end className={link}>Canais</NavLink>
         <NavLink to="/admin/analytics" className={link}>Analytics</NavLink>
         <NavLink to="/admin/settings" className={link}>Configurações</NavLink>
         <div className="ml-auto">

@@ -13,14 +13,14 @@ export default function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white">Grupos</h1>
-          <p className="text-gray-400 mt-1">{groups.length} grupo{groups.length !== 1 ? 's' : ''} cadastrado{groups.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-3xl font-bold text-white">Canais</h1>
+          <p className="text-gray-400 mt-1">{groups.length} cana{groups.length !== 1 ? 'is' : 'l'} cadastrado{groups.length !== 1 ? 's' : ''}</p>
         </div>
         <Link
           to="/admin/groups/new"
           className="bg-green-600 hover:bg-green-500 text-white font-medium px-5 py-2.5 rounded-xl transition-colors"
         >
-          + Novo Grupo
+          + Novo Canal
         </Link>
       </div>
 
@@ -37,13 +37,13 @@ export default function Dashboard() {
       {!isLoading && groups.length === 0 && (
         <div className="text-center py-20">
           <p className="text-5xl mb-4">🔍</p>
-          <p className="text-gray-400 text-lg">Nenhum grupo ainda.</p>
-          <p className="text-gray-500 text-sm mt-2">Crie um grupo para começar a varrer promoções.</p>
+          <p className="text-gray-400 text-lg">Nenhum canal ainda.</p>
+          <p className="text-gray-500 text-sm mt-2">Crie um canal para começar a varrer promoções.</p>
           <Link
             to="/admin/groups/new"
             className="mt-6 inline-block bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl transition-colors"
           >
-            Criar primeiro grupo
+            Criar primeiro canal
           </Link>
         </div>
       )}

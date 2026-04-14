@@ -110,7 +110,7 @@ export default function GroupCard({ group }) {
           ✏️
         </Link>
         <button
-          onClick={() => { if (confirm('Deletar grupo?')) del.mutate() }}
+          onClick={() => { if (confirm('Deletar canal?')) del.mutate() }}
           className="bg-red-900 hover:bg-red-700 text-white text-sm px-3 py-1.5 rounded-lg transition-colors"
         >
           🗑️

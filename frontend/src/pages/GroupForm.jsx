@@ -72,7 +72,7 @@ export default function GroupForm() {
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-8">
-        {isEdit ? 'Editar Grupo' : 'Novo Grupo'}
+        {isEdit ? 'Editar Canal' : 'Novo Canal'}
       </h1>
 
       <form onSubmit={submit} className="space-y-5">
@@ -141,7 +141,7 @@ export default function GroupForm() {
             onChange={set('active')}
             className="w-4 h-4 accent-green-500"
           />
-          <label htmlFor="active" className="text-sm text-gray-300">Grupo ativo (incluso no scan automático)</label>
+          <label htmlFor="active" className="text-sm text-gray-300">Canal ativo (incluso no scan automático)</label>
         </div>
 
         {mutation.error && (
@@ -154,7 +154,7 @@ export default function GroupForm() {
             disabled={mutation.isPending}
             className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors"
           >
-            {mutation.isPending ? 'Salvando...' : (isEdit ? 'Salvar alterações' : 'Criar grupo')}
+            {mutation.isPending ? 'Salvando...' : (isEdit ? 'Salvar alterações' : 'Criar canal')}
           </button>
           <button
             type="button"

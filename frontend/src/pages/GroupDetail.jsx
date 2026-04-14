@@ -96,7 +96,7 @@ export default function GroupDetail() {
   })
 
   if (loadingGroup) return <div className="text-center text-gray-400 py-16">Carregando...</div>
-  if (!group) return <div className="text-center text-red-400 py-16">Grupo não encontrado.</div>
+  if (!group) return <div className="text-center text-red-400 py-16">Canal não encontrado.</div>
 
   const badge = 'text-xs px-2.5 py-1 rounded-lg cursor-pointer transition-colors'
   const active = 'bg-green-700 text-white'
@@ -108,7 +108,7 @@ export default function GroupDetail() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <Link to="/admin" className="text-gray-500 hover:text-gray-300 text-sm">← Grupos</Link>
+            <Link to="/admin" className="text-gray-500 hover:text-gray-300 text-sm">← Canais</Link>
             <span className={`text-xs px-2 py-0.5 rounded-full ${group.active ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
               {group.active ? 'Ativo' : 'Inativo'}
             </span>
@@ -121,7 +121,7 @@ export default function GroupDetail() {
             ✏️ Editar
           </Link>
           <button
-            onClick={() => { if (confirm('Deletar grupo e todos os produtos?')) del.mutate() }}
+            onClick={() => { if (confirm('Deletar canal e todos os produtos?')) del.mutate() }}
             className="bg-red-900 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
           >
             🗑️ Deletar
