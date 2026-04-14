@@ -33,6 +33,16 @@ class Product(SQLModel, table=True):
     sent_at: Optional[datetime] = None
 
     group: Optional[Group] = Relationship(back_populates="products")
+    price_history: list["PriceHistory"] = Relationship(back_populates="product")
+
+
+class PriceHistory(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    product_id: int = Field(foreign_key="product.id")
+    price: float
+    recorded_at: datetime = Field(default_factory=datetime.utcnow)
+
+    product: Optional[Product] = Relationship(back_populates="price_history")
 
 
 class ScanJob(SQLModel, table=True):

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from sqlmodel import Session, select
 
-from ..models import Group, Product, ScanJob, AppConfig
+from ..models import Group, Product, ScanJob, AppConfig, PriceHistory
 from ..database import engine
 from . import mercadolivre, amazon
 from .whatsapp.factory import get_adapter
@@ -105,32 +105,39 @@ async def scan_group(group_id: int):
                         sent_at=sent_at,
                     )
                     session.add(product)
+                    session.flush()  # obtém product.id para o histórico
+                    session.add(PriceHistory(product_id=product.id, price=item["price"]))
                     existing[item["url"]] = product
                     new_count += 1
 
                 else:
-                    # Produto conhecido — detectar queda de preço (≥10%)
-                    drop_pct = (
-                        (stored.price - item["price"]) / stored.price
-                        if stored.price > 0
-                        else 0
-                    )
-                    if drop_pct >= 0.10:
-                        logger.info(
-                            f"Price drop {drop_pct:.0%} on {item['url']} "
-                            f"({stored.price:.2f} → {item['price']:.2f})"
+                    # Produto conhecido — registrar qualquer mudança de preço
+                    if item["price"] != stored.price:
+                        session.add(PriceHistory(product_id=stored.id, price=item["price"]))
+
+                        drop_pct = (
+                            (stored.price - item["price"]) / stored.price
+                            if stored.price > 0
+                            else 0
                         )
-                        stored.price = item["price"]
-                        stored.sent_at = None
-                        if wa_adapter:
-                            msg = _format_message(
-                                item, group.name, group.message_template, is_drop=True
+                        if drop_pct >= 0.10:
+                            logger.info(
+                                f"Price drop {drop_pct:.0%} on {item['url']} "
+                                f"({stored.price:.2f} → {item['price']:.2f})"
                             )
-                            ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
-                            if ok:
-                                stored.sent_at = datetime.utcnow()
+                            stored.sent_at = None
+                            if wa_adapter:
+                                msg = _format_message(
+                                    item, group.name, group.message_template, is_drop=True
+                                )
+                                ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
+                                if ok:
+                                    stored.sent_at = datetime.utcnow()
+                            new_count += 1
+
+                        # atualiza preço em qualquer mudança
+                        stored.price = item["price"]
                         session.add(stored)
-                        new_count += 1
 
             job.products_found = new_count
             job.status = "done"

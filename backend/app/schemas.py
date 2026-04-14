@@ -91,5 +91,15 @@ class AppConfigUpdate(BaseModel):
     global_interval: Optional[int] = None
 
 
+class PriceHistoryRead(BaseModel):
+    id: int
+    product_id: int
+    price: float
+    recorded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class CreateWAGroupRequest(BaseModel):
     participants: list[str] = []

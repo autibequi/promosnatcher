@@ -17,6 +17,7 @@ export const getProducts = (groupId, params = {}) =>
   api.get(`/groups/${groupId}/products`, { params }).then(r => r.data)
 export const deleteProduct = (id) => api.delete(`/products/${id}`)
 export const sendProduct = (id) => api.post(`/products/${id}/send`).then(r => r.data)
+export const getProductHistory = (id) => api.get(`/products/${id}/history`).then(r => r.data)
 
 // Scan
 export const getScanJobs = () => api.get('/scan/jobs').then(r => r.data)

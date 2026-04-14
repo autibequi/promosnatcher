@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from ..database import get_session
-from ..models import Product, Group, AppConfig
-from ..schemas import ProductRead
+from ..models import Product, Group, AppConfig, PriceHistory
+from ..schemas import ProductRead, PriceHistoryRead
 from ..services.whatsapp.factory import get_adapter
 from ..services.scanner import _format_message
 
@@ -32,6 +32,19 @@ def list_products(
     elif sent is False:
         q = q.where(Product.sent_at.is_(None))
     q = q.order_by(Product.found_at.desc()).offset(offset).limit(limit)
+    return session.exec(q).all()
+
+
+@router.get("/products/{product_id}/history", response_model=list[PriceHistoryRead])
+def get_product_history(product_id: int, session: Session = Depends(get_session)):
+    product = session.get(Product, product_id)
+    if not product:
+        raise HTTPException(404, "Product not found")
+    q = (
+        select(PriceHistory)
+        .where(PriceHistory.product_id == product_id)
+        .order_by(PriceHistory.recorded_at.asc())
+    )
     return session.exec(q).all()
 
 
