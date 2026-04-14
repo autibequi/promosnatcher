@@ -24,6 +24,7 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN send_end_hour INTEGER NOT NULL DEFAULT 22',
             'ALTER TABLE appconfig ADD COLUMN ml_client_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN ml_client_secret TEXT',
+            "ALTER TABLE appconfig ADD COLUMN wa_group_prefix TEXT DEFAULT 'Snatcher'",
             'ALTER TABLE "group" ADD COLUMN wa_group_status TEXT',
             'ALTER TABLE appconfig ADD COLUMN amz_tracking_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN ml_affiliate_tool_id TEXT',

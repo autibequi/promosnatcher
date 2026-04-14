@@ -19,6 +19,7 @@ export default function Settings() {
     ml_client_secret: '',
     amz_tracking_id: '',
     ml_affiliate_tool_id: '',
+    wa_group_prefix: 'Snatcher',
   })
   const [newGroupName, setNewGroupName] = useState('')
 
@@ -36,6 +37,7 @@ export default function Settings() {
         ml_client_secret: '',
         amz_tracking_id: config.amz_tracking_id || '',
         ml_affiliate_tool_id: config.ml_affiliate_tool_id || '',
+        wa_group_prefix: config.wa_group_prefix ?? 'Snatcher',
       })
     }
   }, [config])
@@ -94,6 +96,7 @@ export default function Settings() {
       wa_api_key: form.wa_api_key || undefined,
       amz_tracking_id: form.amz_tracking_id || undefined,
       ml_affiliate_tool_id: form.ml_affiliate_tool_id || undefined,
+      wa_group_prefix: form.wa_group_prefix || null,
     })
   }
 
@@ -211,6 +214,19 @@ export default function Settings() {
           {waStatus?.status === 'WORKING' && (
             <div className="space-y-3 pt-2 border-t border-gray-800">
               <div className="flex items-center justify-between">
+                {/* Prefixo */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400 whitespace-nowrap">Prefixo:</label>
+                  <input
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-green-500"
+                    value={form.wa_group_prefix}
+                    onChange={e => setForm(f => ({ ...f, wa_group_prefix: e.target.value }))}
+                    placeholder="Snatcher"
+                  />
+                  <span className="text-xs text-gray-500 font-mono whitespace-nowrap">
+                    → {form.wa_group_prefix || '…'} - Nome
+                  </span>
+                </div>
                 <p className="text-sm font-medium text-gray-300">Grupos WhatsApp</p>
                 <button type="button" onClick={() => refetchGroups()}
                   className="text-xs text-gray-400 hover:text-white transition-colors">
@@ -221,7 +237,7 @@ export default function Settings() {
               {/* Criar novo grupo */}
               <div className="flex gap-2">
                 <input className={`${field} flex-1`}
-                  placeholder="Nome do novo grupo"
+                  placeholder={form.wa_group_prefix ? `ex: Whey Barato` : 'Nome do grupo'}
                   value={newGroupName}
                   onChange={e => setNewGroupName(e.target.value)} />
                 <button type="button"

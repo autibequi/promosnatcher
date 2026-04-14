@@ -84,6 +84,7 @@ class AppConfigRead(BaseModel):
     ml_client_id: Optional[str]
     amz_tracking_id: Optional[str]
     ml_affiliate_tool_id: Optional[str]
+    wa_group_prefix: Optional[str]
 
     class Config:
         from_attributes = True
@@ -101,6 +102,7 @@ class AppConfigUpdate(BaseModel):
     ml_client_secret: Optional[str] = None
     amz_tracking_id: Optional[str] = None
     ml_affiliate_tool_id: Optional[str] = None
+    wa_group_prefix: Optional[str] = None
 
 
 class PriceHistoryRead(BaseModel):

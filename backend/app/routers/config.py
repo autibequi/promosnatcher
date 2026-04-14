@@ -176,7 +176,7 @@ async def wa_start_session(session: Session = Depends(get_session)):
 
 @router.get("/wa/groups")
 async def list_wa_groups(session: Session = Depends(get_session)):
-    """Lista grupos WA onde o bot está membro."""
+    """Lista grupos WA com o prefixo configurado."""
     config = _get_or_create_config(session)
     adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
@@ -184,7 +184,11 @@ async def list_wa_groups(session: Session = Depends(get_session)):
         raise HTTPException(400, "WhatsApp não configurado")
     if not hasattr(adapter, "list_groups"):
         raise HTTPException(400, f"Provider '{config.wa_provider}' não suporta listagem de grupos")
-    return await adapter.list_groups()
+    groups = await adapter.list_groups()
+    prefix = config.wa_group_prefix or ""
+    if prefix:
+        groups = [g for g in groups if g["name"].startswith(prefix)]
+    return groups
 
 
 class WAGroupCreate(BaseModel):
@@ -204,12 +208,15 @@ async def create_wa_group_via_config(
     if not adapter:
         raise HTTPException(400, "WhatsApp não configurado")
 
+    prefix = config.wa_group_prefix or ""
+    full_name = f"{prefix} - {body.name}" if prefix else body.name
+
     async def _create():
-        wa_id = await adapter.create_group(body.name, [])
+        wa_id = await adapter.create_group(full_name, [])
         if wa_id:
-            logger.info(f"Grupo WA criado: {wa_id} ({body.name})")
+            logger.info(f"Grupo WA criado: {wa_id} ({full_name})")
         else:
-            logger.error(f"Falha ao criar grupo WA: {body.name}")
+            logger.error(f"Falha ao criar grupo WA: {full_name}")
 
     background_tasks.add_task(_create)
     return {"message": f"Criando '{body.name}'... atualize a lista em ~10s"}

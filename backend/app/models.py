@@ -69,5 +69,6 @@ class AppConfig(SQLModel, table=True):
     send_end_hour: int = 22    # hora fim envio WA (exclusive)
     ml_client_id: Optional[str] = None
     ml_client_secret: Optional[str] = None
+    wa_group_prefix: Optional[str] = "Snatcher"
     amz_tracking_id: Optional[str] = None
     ml_affiliate_tool_id: Optional[str] = None
