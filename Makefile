@@ -16,6 +16,7 @@ help: ## Mostra este help
 # ---------------------------------------------------------------------------
 
 up: ## Build + sobe a stack em background
+	@mkdir -p backend/data
 	$(COMPOSE) up --build -d
 
 down: ## Para e remove os containers
