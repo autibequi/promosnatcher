@@ -10,6 +10,7 @@ class GroupCreate(BaseModel):
     min_val: float
     max_val: float
     whatsapp_group_id: Optional[str] = None
+    message_template: Optional[str] = None
     active: bool = True
     scan_interval: int = 30
 
@@ -21,6 +22,7 @@ class GroupUpdate(BaseModel):
     min_val: Optional[float] = None
     max_val: Optional[float] = None
     whatsapp_group_id: Optional[str] = None
+    message_template: Optional[str] = None
     active: Optional[bool] = None
     scan_interval: Optional[int] = None
 
@@ -33,6 +35,7 @@ class GroupRead(BaseModel):
     min_val: float
     max_val: float
     whatsapp_group_id: Optional[str]
+    message_template: Optional[str]
     active: bool
     scan_interval: int
     created_at: datetime

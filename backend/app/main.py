@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from .database import create_db_and_tables
+from .database import create_db_and_tables, migrate_db
 from .routers import groups, products, scan, config
 from .services import scheduler
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    migrate_db()
     interval = int(os.getenv("SCAN_INTERVAL", "30"))
     scheduler.start(interval)
     logger.info("App started")

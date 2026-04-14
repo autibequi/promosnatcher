@@ -9,17 +9,39 @@ from .whatsapp.factory import get_adapter
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TEMPLATE = (
+    "🔥 *PROMOÇÃO — {group_name}*\n\n"
+    "📦 {title}\n"
+    "💰 {price}\n"
+    "🏪 {source}\n\n"
+    "🔗 {url}"
+)
 
-def _format_message(product: dict, group_name: str) -> str:
-    price = f"R$ {product['price']:.2f}".replace(".", ",")
+PRICE_DROP_BADGE = "🚨 *QUEDA DE PREÇO — {group_name}*\n\n"
+
+
+def _format_message(
+    product: dict,
+    group_name: str,
+    template: str | None = None,
+    is_drop: bool = False,
+) -> str:
+    price_fmt = f"R$ {product['price']:.2f}".replace(".", ",")
     source_label = "Mercado Livre" if product["source"] == "mercadolivre" else "Amazon"
-    return (
-        f"🔥 *PROMOÇÃO — {group_name}*\n\n"
-        f"📦 {product['title']}\n"
-        f"💰 {price}\n"
-        f"🏪 {source_label}\n\n"
-        f"🔗 {product['url']}"
-    )
+    ctx = {
+        "title": product["title"],
+        "price": price_fmt,
+        "url": product["url"],
+        "source": source_label,
+        "group_name": group_name,
+        "image_url": product.get("image_url") or "",
+    }
+    tmpl = template or DEFAULT_TEMPLATE
+    if is_drop:
+        badge = PRICE_DROP_BADGE.format(group_name=group_name)
+        body = tmpl.replace("🔥 *PROMOÇÃO — {group_name}*\n\n", "")
+        return badge + body.format_map(ctx)
+    return tmpl.format_map(ctx)
 
 
 async def scan_group(group_id: int):
@@ -34,7 +56,6 @@ async def scan_group(group_id: int):
         session.refresh(job)
 
         try:
-            # Busca em paralelo
             ml_results = await mercadolivre.search(
                 group.search_prompt, group.min_val, group.max_val
             )
@@ -43,12 +64,13 @@ async def scan_group(group_id: int):
             )
             all_results = ml_results + amz_results
 
-            # URLs já salvas para esse grupo (dedup)
-            existing_urls = set(
-                session.exec(
-                    select(Product.url).where(Product.group_id == group_id)
+            # Dict url → Product para dedup e comparação de preço
+            existing = {
+                p.url: p
+                for p in session.exec(
+                    select(Product).where(Product.group_id == group_id)
                 ).all()
-            )
+            }
 
             config = session.get(AppConfig, 1)
             wa_adapter = None
@@ -62,35 +84,60 @@ async def scan_group(group_id: int):
 
             new_count = 0
             for item in all_results:
-                if item["url"] in existing_urls:
-                    continue
+                stored = existing.get(item["url"])
 
-                sent_at = None
-                if wa_adapter:
-                    msg = _format_message(item, group.name)
-                    ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
-                    if ok:
-                        sent_at = datetime.utcnow()
+                if stored is None:
+                    # Produto novo
+                    sent_at = None
+                    if wa_adapter:
+                        msg = _format_message(item, group.name, group.message_template)
+                        ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
+                        if ok:
+                            sent_at = datetime.utcnow()
 
-                product = Product(
-                    group_id=group_id,
-                    title=item["title"],
-                    price=item["price"],
-                    url=item["url"],
-                    image_url=item.get("image_url"),
-                    source=item["source"],
-                    sent_at=sent_at,
-                )
-                session.add(product)
-                existing_urls.add(item["url"])
-                new_count += 1
+                    product = Product(
+                        group_id=group_id,
+                        title=item["title"],
+                        price=item["price"],
+                        url=item["url"],
+                        image_url=item.get("image_url"),
+                        source=item["source"],
+                        sent_at=sent_at,
+                    )
+                    session.add(product)
+                    existing[item["url"]] = product
+                    new_count += 1
+
+                else:
+                    # Produto conhecido — detectar queda de preço (≥10%)
+                    drop_pct = (
+                        (stored.price - item["price"]) / stored.price
+                        if stored.price > 0
+                        else 0
+                    )
+                    if drop_pct >= 0.10:
+                        logger.info(
+                            f"Price drop {drop_pct:.0%} on {item['url']} "
+                            f"({stored.price:.2f} → {item['price']:.2f})"
+                        )
+                        stored.price = item["price"]
+                        stored.sent_at = None
+                        if wa_adapter:
+                            msg = _format_message(
+                                item, group.name, group.message_template, is_drop=True
+                            )
+                            ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
+                            if ok:
+                                stored.sent_at = datetime.utcnow()
+                        session.add(stored)
+                        new_count += 1
 
             job.products_found = new_count
             job.status = "done"
             job.finished_at = datetime.utcnow()
             session.add(job)
             session.commit()
-            logger.info(f"Scan group {group_id}: {new_count} new products")
+            logger.info(f"Scan group {group_id}: {new_count} new/updated products")
 
         except Exception as e:
             job.status = "error"

@@ -11,6 +11,7 @@ const EMPTY = {
   max_val: '',
   scan_interval: 30,
   active: true,
+  message_template: '',
 }
 
 export default function GroupForm() {
@@ -36,6 +37,7 @@ export default function GroupForm() {
         max_val: existing.max_val,
         scan_interval: existing.scan_interval,
         active: existing.active,
+        message_template: existing.message_template || '',
       })
     }
   }, [existing])
@@ -60,6 +62,7 @@ export default function GroupForm() {
       min_val: parseFloat(form.min_val),
       max_val: parseFloat(form.max_val),
       scan_interval: parseInt(form.scan_interval),
+      message_template: form.message_template || null,
     })
   }
 
@@ -110,6 +113,24 @@ export default function GroupForm() {
         <div>
           <label className={label}>Intervalo de scan (minutos)</label>
           <input className={field} type="number" min="5" max="1440" value={form.scan_interval} onChange={set('scan_interval')} />
+        </div>
+
+        <div>
+          <label className={label}>Template de mensagem</label>
+          <textarea
+            className={`${field} resize-none font-mono text-sm`}
+            rows={5}
+            value={form.message_template}
+            onChange={set('message_template')}
+            placeholder={'🔥 *PROMOÇÃO — {group_name}*\n\n📦 {title}\n💰 {price}\n🏪 {source}\n\n🔗 {url}'}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Variáveis:{' '}
+            {['{title}', '{price}', '{url}', '{source}', '{group_name}', '{image_url}'].map(v => (
+              <code key={v} className="text-green-400 mr-1">{v}</code>
+            ))}.
+            Deixe vazio para usar o padrão.
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
