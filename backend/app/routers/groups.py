@@ -94,10 +94,11 @@ def trigger_scan(
     return {"message": "Scan iniciado", "group_id": group_id}
 
 
-@router.post("/{group_id}/create-wa-group")
+@router.post("/{group_id}/create-wa-group", status_code=202)
 async def create_wa_group(
     group_id: int,
     body: CreateWAGroupRequest,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
     group = session.get(Group, group_id)
@@ -117,12 +118,23 @@ async def create_wa_group(
     if not adapter:
         raise HTTPException(400, "Configuração WhatsApp incompleta")
 
-    wa_id = await adapter.create_group(group.name, body.participants)
-    if not wa_id:
-        raise HTTPException(502, "Falha ao criar grupo no WhatsApp")
+    # Roda em background — Baileys pode levar até 60s em sessões novas
+    async def _do_create():
+        from ..database import engine
+        from sqlmodel import Session as SSession
+        wa_id = await adapter.create_group(group.name, body.participants)
+        if wa_id:
+            with SSession(engine) as s:
+                g = s.get(Group, group_id)
+                if g:
+                    g.whatsapp_group_id = wa_id
+                    g.wa_group_status = "ok"
+                    g.updated_at = datetime.utcnow()
+                    s.add(g)
+                    s.commit()
+            logger.info(f"Grupo WA criado: {wa_id} para grupo {group_id}")
+        else:
+            logger.error(f"Falha ao criar grupo WA para grupo {group_id}")
 
-    group.whatsapp_group_id = wa_id
-    group.updated_at = datetime.utcnow()
-    session.add(group)
-    session.commit()
-    return {"whatsapp_group_id": wa_id}
+    background_tasks.add_task(asyncio.ensure_future, _do_create())
+    return {"message": "Criação em andamento — recarregue em ~30s"}

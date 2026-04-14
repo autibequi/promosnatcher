@@ -34,7 +34,10 @@ export default function GroupDetail() {
 
   const createWA = useMutation({
     mutationFn: () => createWAGroup(id, []),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['group', id] }),
+    onSuccess: () => {
+      // Aguarda ~35s e recarrega (background task pode levar tempo)
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['group', id] }), 35000)
+    },
   })
 
   if (loadingGroup) return <div className="text-center text-gray-400 py-16">Carregando...</div>
@@ -95,12 +98,14 @@ export default function GroupDetail() {
               <span className="text-sm text-gray-600">Não vinculado</span>
               <button
                 onClick={() => createWA.mutate()}
-                disabled={createWA.isPending}
+                disabled={createWA.isPending || createWA.isSuccess}
                 className="text-xs bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors"
               >
                 {createWA.isPending ? '⏳ Criando...' : '📱 Criar grupo WA'}
               </button>
-              {createWA.isSuccess && <span className="text-xs text-green-400">✓ Grupo criado!</span>}
+              {createWA.isSuccess && (
+                <span className="text-xs text-yellow-400">⏳ Criando grupo no WA... aguarde ~30s e recarregue</span>
+              )}
               {createWA.isError && <span className="text-xs text-red-400">✗ Erro ao criar</span>}
             </div>
           )}
