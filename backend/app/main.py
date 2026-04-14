@@ -75,6 +75,12 @@ app.include_router(auth_router.router, prefix="/api")
 app.include_router(groups.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(products.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(scan.router, prefix="/api", dependencies=[Depends(require_auth)])
+# Rotas públicas do config (sem auth) — registradas ANTES do router protegido
+from fastapi.responses import HTMLResponse
+from .routers.config import wa_qr
+app.add_api_route("/api/config/wa/qr", wa_qr, methods=["GET"],
+                  response_class=HTMLResponse, tags=["config"])
+
 app.include_router(config.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 
