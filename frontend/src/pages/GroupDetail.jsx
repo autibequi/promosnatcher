@@ -44,8 +44,9 @@ export default function GroupDetail() {
   const { data: waGroups = [], isLoading: loadingWAGroups } = useQuery({
     queryKey: ['waGroups'],
     queryFn: getWAGroups,
-    enabled: showWAPicker || linkedIds.length > 0,
-    staleTime: 30000,
+    staleTime: 60000,
+    retry: false,
+    // sempre habilitado — falha silenciosa se WAHA offline
   })
 
   // Parseia o campo como array (pode ser JSON array ou ID único)
