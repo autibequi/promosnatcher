@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: promo-hunter-postgres
     environment:
       - POSTGRES_DB=evolution
       - POSTGRES_USER=evolution
@@ -16,6 +17,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: promo-hunter-redis
     command: redis-server --save "" --appendonly no
     restart: unless-stopped
     healthcheck:
@@ -26,6 +28,7 @@ services:
 
   evolution:
     image: atendai/evolution-api:latest
+    container_name: promo-hunter-evolution
     ports:
       - "8181:8080"
     volumes:
@@ -69,6 +72,7 @@ services:
 
   backend:
     build: ./backend
+    container_name: promo-hunter-backend
     ports:
       - "8000:8000"
     volumes:
@@ -78,7 +82,7 @@ services:
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
       - TZ_NAME=${TZ_NAME:-America/Sao_Paulo}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-      - EVOLUTION_URL=http://evolution:8080
+      - EVOLUTION_URL=http://promo-hunter-evolution:8080
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-promohunter123}
       - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE:-promo-hunter}
     depends_on:
@@ -94,6 +98,7 @@ services:
 
   frontend:
     build: ./frontend
+    container_name: promo-hunter-frontend
     ports:
       - "6060:80"
     depends_on:
