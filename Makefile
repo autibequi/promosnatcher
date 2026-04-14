@@ -2,7 +2,7 @@
 # Detecta docker compose v2 ou podman-compose
 COMPOSE := $(shell command -v docker 2>/dev/null && docker compose version >/dev/null 2>&1 && echo "docker compose" || command -v podman-compose 2>/dev/null && echo "podman-compose" || echo "docker-compose")
 BACKEND_URL := http://localhost:8000
-FRONTEND_URL := http://localhost:6667
+FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
