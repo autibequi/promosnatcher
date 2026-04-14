@@ -25,6 +25,8 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN ml_client_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN ml_client_secret TEXT',
             'ALTER TABLE "group" ADD COLUMN wa_group_status TEXT',
+            'ALTER TABLE appconfig ADD COLUMN amz_tracking_id TEXT',
+            'ALTER TABLE appconfig ADD COLUMN ml_affiliate_tool_id TEXT',
         ]:
             try:
                 conn.execute(text(stmt))

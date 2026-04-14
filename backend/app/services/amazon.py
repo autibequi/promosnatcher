@@ -6,6 +6,13 @@ from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 logger = logging.getLogger(__name__)
 
 
+def make_affiliate_url(url: str, tracking_id: str) -> str:
+    """Retorna a URL do produto com o tag de afiliado Amazon Associates."""
+    from urllib.parse import urlparse, urlencode, urlunparse
+    p = urlparse(url)
+    return urlunparse(p._replace(query=urlencode({"tag": tracking_id}), fragment=""))
+
+
 def _build_url(query: str, min_val: float, max_val: float) -> str:
     params = urlencode({
         "k": query,

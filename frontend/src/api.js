@@ -46,3 +46,9 @@ export const getScanStatus = () => api.get('/scan/status').then(r => r.data)
 export const getConfig = () => api.get('/config').then(r => r.data)
 export const updateConfig = (data) => api.put('/config', data).then(r => r.data)
 export const testWA = () => api.post('/config/test-wa').then(r => r.data)
+export const getWAStatus = () => api.get('/config/wa/status').then(r => r.data)
+export const startWASession = () => api.post('/config/wa/session/start').then(r => r.data)
+export const getWAGroups = () => api.get('/config/wa/groups').then(r => r.data)
+export const createWAGroupDirect = (name) => api.post('/config/wa/groups', { name }).then(r => r.data)
+
+export default api

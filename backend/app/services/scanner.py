@@ -33,13 +33,20 @@ def _format_message(
     group_name: str,
     template: str | None = None,
     is_drop: bool = False,
+    config=None,
 ) -> str:
     price_fmt = f"R$ {product['price']:.2f}".replace(".", ",")
     source_label = "Mercado Livre" if product["source"] == "mercadolivre" else "Amazon"
+    url = product["url"]
+    if config:
+        if product["source"] == "amazon" and config.amz_tracking_id:
+            url = amazon.make_affiliate_url(url, config.amz_tracking_id)
+        elif product["source"] == "mercadolivre" and config.ml_affiliate_tool_id:
+            url = mercadolivre.make_affiliate_url(url, config.ml_affiliate_tool_id)
     ctx = {
         "title": product["title"],
         "price": price_fmt,
-        "url": product["url"],
+        "url": url,
         "source": source_label,
         "group_name": group_name,
         "image_url": product.get("image_url") or "",
@@ -116,7 +123,7 @@ async def scan_group(group_id: int):
                     # Produto novo
                     sent_at = None
                     if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
-                        msg = _format_message(item, group.name, group.message_template)
+                        msg = _format_message(item, group.name, group.message_template, config=config)
                         ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
                         if ok:
                             sent_at = datetime.utcnow()
@@ -154,7 +161,7 @@ async def scan_group(group_id: int):
                             stored.sent_at = None
                             if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
                                 msg = _format_message(
-                                    item, group.name, group.message_template, is_drop=True
+                                    item, group.name, group.message_template, is_drop=True, config=config
                                 )
                                 ok = await wa_adapter.send_text(group.whatsapp_group_id, msg)
                                 if ok:

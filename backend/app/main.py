@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 def _configure_defaults():
-    """Pré-configura AppConfig com Evolution API se ainda não configurado."""
-    evolution_url = os.getenv("EVOLUTION_URL")
-    evolution_key = os.getenv("EVOLUTION_API_KEY")
-    evolution_instance = os.getenv("EVOLUTION_INSTANCE", "promo-hunter")
-    if not (evolution_url and evolution_key):
+    """Auto-configura AppConfig com WAHA se variáveis de ambiente presentes."""
+    waha_url = os.getenv("WAHA_URL")
+    if not waha_url:
         return
+    waha_session = os.getenv("WAHA_SESSION", "default")
+    waha_key = os.getenv("WAHA_API_KEY", "")
     from sqlmodel import Session
     from .database import engine
     with Session(engine) as session:
@@ -32,14 +32,15 @@ def _configure_defaults():
             cfg = AppConfig()
             session.add(cfg)
             session.flush()
-        if not cfg.wa_api_key:
-            cfg.wa_provider = "evolution"
-            cfg.wa_base_url = evolution_url
-            cfg.wa_api_key = evolution_key
-            cfg.wa_instance = evolution_instance
+        # Só configura se ainda não foi configurado manualmente
+        if not cfg.wa_base_url:
+            cfg.wa_provider = "waha"
+            cfg.wa_base_url = waha_url
+            cfg.wa_api_key = waha_key
+            cfg.wa_instance = waha_session
             session.add(cfg)
             session.commit()
-            logger.info(f"Evolution API auto-configurada: {evolution_url} / instância: {evolution_instance}")
+            logger.info(f"WAHA auto-configurado: {waha_url} / sessão: {waha_session}")
 
 
 @asynccontextmanager

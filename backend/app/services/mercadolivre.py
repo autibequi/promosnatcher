@@ -21,6 +21,12 @@ HEADERS = {
 _MLB_RE = re.compile(r"(MLB\d+)")
 
 
+def make_affiliate_url(url: str, tool_id: str) -> str:
+    """Retorna a URL do produto com parâmetros de afiliado ML."""
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}matt_tool={tool_id}&matt_source=affiliate"
+
+
 # ---------------------------------------------------------------------------
 # API oficial
 # ---------------------------------------------------------------------------

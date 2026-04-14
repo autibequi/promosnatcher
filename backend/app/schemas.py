@@ -82,6 +82,8 @@ class AppConfigRead(BaseModel):
     send_start_hour: int
     send_end_hour: int
     ml_client_id: Optional[str]
+    amz_tracking_id: Optional[str]
+    ml_affiliate_tool_id: Optional[str]
 
     class Config:
         from_attributes = True
@@ -97,6 +99,8 @@ class AppConfigUpdate(BaseModel):
     send_end_hour: Optional[int] = None
     ml_client_id: Optional[str] = None
     ml_client_secret: Optional[str] = None
+    amz_tracking_id: Optional[str] = None
+    ml_affiliate_tool_id: Optional[str] = None
 
 
 class PriceHistoryRead(BaseModel):

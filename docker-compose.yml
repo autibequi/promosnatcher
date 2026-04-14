@@ -1,74 +1,21 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: promo-hunter-postgres
-    environment:
-      - POSTGRES_DB=evolution
-      - POSTGRES_USER=evolution
-      - POSTGRES_PASSWORD=${EVOLUTION_DB_PASS:-evolution123}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U evolution"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    container_name: promo-hunter-redis
-    command: redis-server --save "" --appendonly no
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  evolution:
-    image: atendai/evolution-api:latest
-    container_name: promo-hunter-evolution
+  waha:
+    image: devlikeapro/waha
+    container_name: promo-hunter-waha
     ports:
-      - "8181:8080"
+      - "3200:3000"
     volumes:
-      - evolution_data:/evolution/instances
+      - waha_data:/app/.sessions
     environment:
-      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8181}
-      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-promohunter123}
-      - LANGUAGE=pt-BR
-      - DEL_INSTANCE=false
-      - CONFIG_SESSION_PHONE_VERSION=2.3000.1035194821
-      - DATABASE_ENABLED=true
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://evolution:${EVOLUTION_DB_PASS:-evolution123}@postgres:5432/evolution
-      - DATABASE_CONNECTION_CLIENT_URL=postgresql://evolution:${EVOLUTION_DB_PASS:-evolution123}@postgres:5432/evolution
-      - DATABASE_SAVE_DATA_INSTANCE=true
-      - DATABASE_SAVE_DATA_NEW_MESSAGE=false
-      - DATABASE_SAVE_MESSAGE_UPDATE=false
-      - DATABASE_SAVE_DATA_CONTACTS=false
-      - DATABASE_SAVE_DATA_CHATS=false
-      - DATABASE_SAVE_DATA_LABELS=false
-      - DATABASE_SAVE_DATA_HISTORIC=false
-      - REDIS_ENABLED=true
-      - REDIS_URI=redis://redis:6379/0
-      - CACHE_REDIS_ENABLED=true
-      - CACHE_REDIS_URI=redis://redis:6379/0
-      - CACHE_REDIS_PREFIX_KEY=evolution
-      - CACHE_REDIS_SAVE_INSTANCES=true
-      - CACHE_LOCAL_ENABLED=false
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB
+      - WAHA_LOG_LEVEL=warn
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/server/status"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 10s
 
   backend:
     build: ./backend
@@ -82,11 +29,14 @@ services:
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
       - TZ_NAME=${TZ_NAME:-America/Sao_Paulo}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-      - EVOLUTION_URL=http://promo-hunter-evolution:8080
-      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-promohunter123}
-      - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE:-promo-hunter}
+      - WAHA_URL=http://promo-hunter-waha:3000
+      - WAHA_SESSION=${WAHA_SESSION:-default}
+      - WAHA_API_KEY=${WAHA_API_KEY:-}
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-}
+      - AUTH_SECRET=${AUTH_SECRET:-promo-hunter-secret-change-me}
     depends_on:
-      evolution:
+      waha:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -102,6 +52,8 @@ services:
     ports:
       - "6060:80"
       - "6061:8081"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -114,8 +66,7 @@ services:
     restart: unless-stopped
     depends_on:
       - frontend
-      - evolution
+      - waha
 
 volumes:
-  postgres_data:
-  evolution_data:
+  waha_data:
