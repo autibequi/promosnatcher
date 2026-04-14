@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+.env
+
+# Database
+backend/data/
+
+# Node
+node_modules/
+dist/
+.cache/
+
+# OS
+.DS_Store
