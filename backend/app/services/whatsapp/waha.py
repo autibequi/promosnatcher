@@ -127,18 +127,20 @@ class WAHAAdapter(WhatsAppAdapter):
             async with httpx.AsyncClient(timeout=15) as c:
                 r = await c.get(url, headers=self._headers)
             if r.status_code == 200:
+                data = r.json()
                 results = []
-                for g in r.json():
-                    gid = g.get("id")
-                    if isinstance(gid, dict):
-                        gid = gid.get("_serialized", "")
+                # WAHA retorna dict {jid: {id, subject, size, participants, ...}}
+                # OU lista de objetos dependendo da versão
+                items = data.values() if isinstance(data, dict) else data
+                for g in items:
+                    if isinstance(g, str):
+                        continue  # pula strings avulsas
+                    gid = g.get("id", "")
+                    name = g.get("subject") or g.get("name") or "Sem nome"
+                    size = g.get("size") or len(g.get("participants", []))
                     if gid:
-                        results.append({
-                            "id": gid,
-                            "name": g.get("name") or g.get("subject") or "Sem nome",
-                            "size": len(g.get("participants", [])),
-                        })
-                return results
+                        results.append({"id": gid, "name": name, "size": size})
+                return sorted(results, key=lambda x: x["name"].lower())
             logger.warning(f"WAHA list_groups: {r.status_code}")
             return []
         except Exception as e:
