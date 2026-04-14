@@ -79,8 +79,6 @@ async def search(query: str, min_val: float, max_val: float) -> list[dict]:
     )
     run_cfg = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
-        wait_for="css:[data-component-type='s-search-result']",
-        wait_for_timeout=15000,
         js_code="window.scrollTo(0, document.body.scrollHeight);",
         delay_before_return_html=2.0,
         page_timeout=30000,
