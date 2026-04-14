@@ -109,9 +109,16 @@ export default function Settings() {
 
       <form onSubmit={submit} className="space-y-5">
 
-        {/* ── WhatsApp Connection ─────────────────────────────────── */}
+        {/* ── WhatsApp Connection — só mostra detalhes se não for WAHA ── */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-base font-semibold text-white">WhatsApp</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">WhatsApp</h2>
+            {form.wa_provider === 'waha' && (
+              <span className="text-xs text-gray-500">Gerenciado pelo painel abaixo</span>
+            )}
+          </div>
+
+          {/* Provider selector — sempre visível */}
 
           <div>
             <label className={label}>Provider</label>
@@ -122,32 +129,35 @@ export default function Settings() {
             </select>
           </div>
 
-          <div>
-            <label className={label}>Base URL</label>
-            <input className={field} value={form.wa_base_url} onChange={set('wa_base_url')}
-              placeholder={form.wa_provider === 'waha' ? 'http://promo-hunter-waha:3000' : 'http://localhost:8080'} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={label}>API Key (opcional)</label>
-              <input className={field} type="password" value={form.wa_api_key} onChange={set('wa_api_key')} placeholder="••••••••" />
-            </div>
-            <div>
-              <label className={label}>Session / Instance</label>
-              <input className={field} value={form.wa_instance} onChange={set('wa_instance')} placeholder="default" />
-            </div>
-          </div>
-
-          <button type="button" onClick={() => test.mutate()}
-            disabled={test.isPending}
-            className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm transition-colors">
-            {test.isPending ? '⏳ Testando...' : '🔌 Testar conexão'}
-          </button>
-          {test.isSuccess && (
-            <p className={`text-sm ${test.data.connected ? 'text-green-400' : 'text-red-400'}`}>
-              {test.data.connected ? '✓ Conectado!' : '✗ Falha na conexão'}
-            </p>
+          {/* Campos avançados — só para providers não-WAHA */}
+          {form.wa_provider !== 'waha' && (
+            <>
+              <div>
+                <label className={label}>Base URL</label>
+                <input className={field} value={form.wa_base_url} onChange={set('wa_base_url')}
+                  placeholder="http://localhost:8080" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={label}>API Key</label>
+                  <input className={field} type="password" value={form.wa_api_key} onChange={set('wa_api_key')} placeholder="••••••••" />
+                </div>
+                <div>
+                  <label className={label}>Session / Instance</label>
+                  <input className={field} value={form.wa_instance} onChange={set('wa_instance')} placeholder="default" />
+                </div>
+              </div>
+              <button type="button" onClick={() => test.mutate()}
+                disabled={test.isPending}
+                className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm transition-colors">
+                {test.isPending ? '⏳ Testando...' : '🔌 Testar conexão'}
+              </button>
+              {test.isSuccess && (
+                <p className={`text-sm ${test.data.connected ? 'text-green-400' : 'text-red-400'}`}>
+                  {test.data.connected ? '✓ Conectado!' : '✗ Falha na conexão'}
+                </p>
+              )}
+            </>
           )}
         </div>
 
