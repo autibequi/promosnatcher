@@ -10,15 +10,42 @@ load_dotenv()
 from .database import create_db_and_tables, migrate_db
 from .routers import groups, products, scan, config
 from .services import scheduler
+from .models import AppConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _configure_defaults():
+    """Pré-configura AppConfig com Evolution API se ainda não configurado."""
+    evolution_url = os.getenv("EVOLUTION_URL")
+    evolution_key = os.getenv("EVOLUTION_API_KEY")
+    evolution_instance = os.getenv("EVOLUTION_INSTANCE", "promo-hunter")
+    if not (evolution_url and evolution_key):
+        return
+    from sqlmodel import Session
+    from .database import engine
+    with Session(engine) as session:
+        cfg = session.get(AppConfig, 1)
+        if not cfg:
+            cfg = AppConfig()
+            session.add(cfg)
+            session.flush()
+        if not cfg.wa_api_key:
+            cfg.wa_provider = "evolution"
+            cfg.wa_base_url = evolution_url
+            cfg.wa_api_key = evolution_key
+            cfg.wa_instance = evolution_instance
+            session.add(cfg)
+            session.commit()
+            logger.info(f"Evolution API auto-configurada: {evolution_url} / instância: {evolution_instance}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
     migrate_db()
+    _configure_defaults()
     interval = int(os.getenv("SCAN_INTERVAL", "30"))
     scheduler.start(interval)
     logger.info("App started")
