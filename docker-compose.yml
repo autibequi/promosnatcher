@@ -101,6 +101,7 @@ services:
     container_name: promo-hunter-frontend
     ports:
       - "6060:80"
+      - "6061:8081"
     depends_on:
       backend:
         condition: service_healthy
