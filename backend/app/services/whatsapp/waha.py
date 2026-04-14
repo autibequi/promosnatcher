@@ -156,17 +156,19 @@ class WAHAAdapter(WhatsAppAdapter):
             return False
 
     async def start_session(self) -> bool:
-        """Cria ou inicia a sessão WAHA."""
-        # Tenta criar primeiro
+        """Cria ou reinicia a sessão WAHA (lida com FAILED/STOPPED)."""
         url_create = f"{self.base_url}/api/sessions"
+        url_stop = f"{self.base_url}/api/sessions/{self.session}/stop"
         url_start = f"{self.base_url}/api/sessions/{self.session}/start"
         try:
             async with httpx.AsyncClient(timeout=10) as c:
-                # Cria a sessão (idempotente)
-                await c.post(url_create,
-                             json={"name": self.session},
-                             headers=self._headers)
-                # Inicia
+                # Se FAILED: para primeiro
+                status = await self.get_session_status()
+                if status.get("status") == "FAILED":
+                    await c.post(url_stop, headers=self._headers)
+                    await asyncio.sleep(1)
+                # Cria (idempotente) e inicia
+                await c.post(url_create, json={"name": self.session}, headers=self._headers)
                 r = await c.post(url_start, headers=self._headers)
             return r.status_code in (200, 201)
         except Exception as e:

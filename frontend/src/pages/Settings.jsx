@@ -187,12 +187,12 @@ export default function Settings() {
               <p className="text-xs text-yellow-400 mb-2">Escaneie o QR com o WhatsApp →</p>
               <iframe src="/api/config/wa/qr"
                 className="w-full rounded-xl border-0 bg-black"
-                style={{ height: 360 }} />
+                style={{ height: 580 }} />
             </div>
           )}
 
           {/* Botão iniciar sessão */}
-          {(waStatus?.status === 'STOPPED' || waStatus?.status === 'NOT_CONFIGURED') && (
+          {(waStatus?.status === 'STOPPED' || waStatus?.status === 'NOT_CONFIGURED' || waStatus?.status === 'FAILED') && (
             <button type="button" onClick={() => startSession.mutate()}
               disabled={startSession.isPending}
               className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm">
