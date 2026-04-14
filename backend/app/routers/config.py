@@ -76,13 +76,13 @@ async def wa_qr(session: Session = Depends(get_session)):
             return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
             <title>WhatsApp QR</title>
             <style>body{{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}}
-            img{{border:8px solid white;border-radius:8px;max-width:320px}}</style>
+            img{{border:8px solid white;border-radius:8px;width:380px;max-width:90vw}}</style>
             </head><body>
-            <h2>📱 Escanear QR — {wa_status}</h2>
+            <h2>📱 Escanear QR</h2>
             <p>WhatsApp → Dispositivos conectados → Conectar dispositivo</p>
             <img src="{qr}" alt="QR Code" />
-            <p>Recarrega automaticamente em 15s</p>
-            <script>setTimeout(()=>location.reload(),15000)</script>
+            <p style="color:#888;font-size:12px">Recarrega em 8s</p>
+            <script>setTimeout(()=>location.reload(),8000)</script>
             </body></html>""")
 
         return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -118,7 +118,7 @@ async def wa_qr(session: Session = Depends(get_session)):
     </head><body>
     <h2>📱 Conectar WhatsApp</h2>
     <img src="{qr_b64}" alt="QR Code" />
-    <script>setTimeout(()=>location.reload(),20000)</script>
+    <script>setTimeout(()=>location.reload(),8000)</script>
     </body></html>""")
 
 
