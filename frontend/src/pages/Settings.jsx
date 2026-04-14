@@ -129,16 +129,22 @@ export default function Settings() {
             )}
           </div>
 
-          {/* Provider selector — sempre visível */}
-
-          <div>
-            <label className={label}>Provider</label>
-            <select className={field} value={form.wa_provider} onChange={set('wa_provider')}>
-              <option value="waha">WAHA (self-hosted, recomendado)</option>
-              <option value="evolution">Evolution API (legado)</option>
-              <option value="zapi">Z-API (SaaS)</option>
-            </select>
-          </div>
+          {/* Provider selector — bloqueado quando WA ativo */}
+          {waStatus?.status === 'WORKING' ? (
+            <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5">
+              <span className="text-sm text-white font-mono">{form.wa_provider.toUpperCase()}</span>
+              <span className="text-xs text-gray-500">🔒 Desconecte para alterar</span>
+            </div>
+          ) : (
+            <div>
+              <label className={label}>Provider</label>
+              <select className={field} value={form.wa_provider} onChange={set('wa_provider')}>
+                <option value="waha">WAHA (self-hosted, recomendado)</option>
+                <option value="evolution">Evolution API (legado)</option>
+                <option value="zapi">Z-API (SaaS)</option>
+              </select>
+            </div>
+          )}
 
           {/* Campos avançados — só para providers não-WAHA */}
           {form.wa_provider !== 'waha' && (
