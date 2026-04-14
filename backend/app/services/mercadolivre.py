@@ -1,3 +1,4 @@
+import asyncio
 import re
 import time
 import httpx
@@ -47,15 +48,15 @@ async def _get_token(client_id: str, client_secret: str) -> str | None:
                 },
             )
         if r.status_code != 200:
-            logger.warning(f"ML token error {r.status_code}: {r.text[:200]}")
+            logger.warning("ml.token_error", extra={"status": r.status_code})
             return None
         data = r.json()
         _token_cache["token"] = data["access_token"]
         _token_cache["expires_at"] = now + data.get("expires_in", 21600)
-        logger.info("ML OAuth token renovado")
+        logger.info("ml.token_renewed")
         return _token_cache["token"]
     except Exception as e:
-        logger.error(f"ML token request failed: {e}")
+        logger.error("ml.token_failed", extra={"error": str(e)})
         return None
 
 
@@ -77,7 +78,7 @@ async def _search_api(
                 headers={"Authorization": f"Bearer {token}"},
             )
         if r.status_code != 200:
-            logger.warning(f"ML API search error {r.status_code}: {r.text[:200]}")
+            logger.warning("ml.api_error", extra={"status": r.status_code})
             return []
         results = []
         for item in r.json().get("results", []):
@@ -93,7 +94,7 @@ async def _search_api(
             })
         return results
     except Exception as e:
-        logger.error(f"ML API search failed: {e}")
+        logger.error("ml.api_failed", extra={"error": str(e)})
         return []
 
 
@@ -143,7 +144,8 @@ def _parse(html: str, min_val: float, max_val: float) -> list[dict]:
             continue
 
         img_el = card.select_one(".poly-card__portada img")
-        img_url = (img_el.get("src") or img_el.get("data-src")) if img_el else None
+        # data-src é a imagem real; src pode ser placeholder de lazy-load
+        img_url = (img_el.get("data-src") or img_el.get("src")) if img_el else None
 
         if not any(r["url"] == url for r in results):
             results.append({
@@ -177,23 +179,33 @@ async def search(
         if token:
             results = await _search_api(query, min_val, max_val, token)
             if results:
-                logger.info(f"ML API: {len(results)} resultados para '{query}'")
+                logger.info("ml.api_results", extra={"query": query, "count": len(results)})
                 return results
-            logger.warning("ML API retornou vazio, usando scraping como fallback")
+            logger.warning("ml.api_empty_fallback", extra={"query": query})
 
-    # Fallback: scraping HTML
+    # Fallback: scraping HTML (com retry + backoff)
     url = _build_url(query, min_val, max_val)
-    try:
-        async with httpx.AsyncClient(
-            timeout=20, headers=HEADERS, follow_redirects=True
-        ) as client:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                logger.warning(f"ML scraping returned {resp.status_code}")
-                return []
-            results = _parse(resp.text, min_val, max_val)
-            logger.info(f"ML scraping: {len(results)} resultados para '{query}'")
-            return results
-    except Exception as e:
-        logger.error(f"ML scraping error: {e}")
-        return []
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(
+                timeout=20, headers=HEADERS, follow_redirects=True
+            ) as client:
+                resp = await client.get(url)
+            if resp.status_code == 200:
+                results = _parse(resp.text, min_val, max_val)
+                logger.info("ml.scraping_results", extra={"query": query, "count": len(results)})
+                return results
+            if resp.status_code == 429:
+                wait = 5 * (attempt + 1)
+                logger.warning("ml.rate_limited", extra={"attempt": attempt + 1, "wait_s": wait})
+                await asyncio.sleep(wait)
+                continue
+            logger.warning("ml.scraping_http_error", extra={"status": resp.status_code})
+            break
+        except Exception as e:
+            if attempt < 2:
+                logger.warning("ml.scraping_retry", extra={"attempt": attempt + 1, "error": str(e)})
+                await asyncio.sleep(3 * (attempt + 1))
+            else:
+                logger.error("ml.scraping_failed", extra={"error": str(e)})
+    return []

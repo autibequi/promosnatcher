@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGroup, getProducts, deleteGroup, createWAGroup, updateGroup, getWAGroups } from '../api'
@@ -11,21 +11,33 @@ export default function GroupDetail() {
   const qc = useQueryClient()
   const [sourceFilter, setSourceFilter] = useState('')
   const [sentFilter, setSentFilter] = useState('')
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 30
+
+  // Reset page quando filtros mudam
+  useEffect(() => { setPage(0) }, [sourceFilter, sentFilter])
 
   const { data: group, isLoading: loadingGroup } = useQuery({
     queryKey: ['group', id],
     queryFn: () => getGroup(id),
   })
 
-  const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ['products', id, sourceFilter, sentFilter],
+  const { data: productsPage, isLoading: loadingProducts } = useQuery({
+    queryKey: ['products', id, sourceFilter, sentFilter, page],
     queryFn: () => getProducts(id, {
       source: sourceFilter || undefined,
       sent: sentFilter === '' ? undefined : sentFilter === 'true',
+      limit: PAGE_SIZE,
+      offset: page * PAGE_SIZE,
     }),
     enabled: Boolean(id),
     refetchInterval: 10_000,
+    placeholderData: (prev) => prev,
   })
+
+  const products = productsPage?.items ?? []
+  const total = productsPage?.total ?? 0
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   const del = useMutation({
     mutationFn: () => deleteGroup(id),
@@ -221,7 +233,7 @@ export default function GroupDetail() {
       <div>
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <h2 className="text-lg font-semibold text-white">
-            Produtos encontrados <span className="text-gray-500 font-normal text-base">({products.length})</span>
+            Produtos encontrados <span className="text-gray-500 font-normal text-base">({total})</span>
           </h2>
           <div className="flex gap-2 ml-auto">
             <button onClick={() => setSourceFilter('')} className={`${badge} ${!sourceFilter ? active : inactive}`}>Todos</button>
@@ -247,6 +259,29 @@ export default function GroupDetail() {
         <div className="space-y-3">
           {products.map(p => <ProductCard key={p.id} product={p} />)}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-800">
+            <button
+              onClick={() => setPage(p => p - 1)}
+              disabled={page === 0}
+              className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-2 rounded-lg transition-colors"
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-gray-400">
+              {page + 1} / {totalPages}
+              <span className="text-gray-600 ml-2">({total} produtos)</span>
+            </span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm px-4 py-2 rounded-lg transition-colors"
+            >
+              Próximo →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

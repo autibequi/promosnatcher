@@ -14,11 +14,11 @@ services:
       - WAHA_DASHBOARD_PASSWORD=${WAHA_API_KEY}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/server/status"]
+      test: ["CMD-SHELL", "wget -qO- --header \"X-Api-Key: $WAHA_API_KEY\" http://localhost:3000/api/server/status"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 15
+      start_period: 30s
 
   backend:
     build: ./backend

@@ -13,7 +13,8 @@ from .services.auth import require_auth
 from .services import scheduler
 from .models import AppConfig
 
-logging.basicConfig(level=logging.INFO)
+from .services.logging_config import setup_logging
+setup_logging()
 logger = logging.getLogger(__name__)
 
 

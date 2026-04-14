@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -9,6 +10,7 @@ logger = logging.getLogger(__name__)
 _UTC = pytz.utc
 _scheduler = BackgroundScheduler(timezone=_UTC)
 _interval_minutes = 30
+_running = threading.Event()  # guard contra double-run
 
 
 def _make_trigger(minutes: int) -> IntervalTrigger:
@@ -16,8 +18,15 @@ def _make_trigger(minutes: int) -> IntervalTrigger:
 
 
 def _run_scan():
-    from .scanner import scan_all_groups
-    asyncio.run(scan_all_groups())
+    if _running.is_set():
+        logger.info("Scan anterior ainda em andamento — pulando disparo")
+        return
+    _running.set()
+    try:
+        from .scanner import scan_all_groups
+        asyncio.run(scan_all_groups())
+    finally:
+        _running.clear()
 
 
 def start(interval_minutes: int = 30):

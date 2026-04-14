@@ -18,19 +18,38 @@ class WAHAAdapter(WhatsAppAdapter):
     # -------------------------------------------------------------------------
 
     async def send_image(self, phone: str, image_url: str, caption: str = "") -> bool:
-        """Envia imagem com legenda. image_url pode ser http/https."""
-        url = f"{self.base_url}/api/sendImage"
+        """Envia imagem com legenda. Tenta URL primeiro; fallback para base64."""
+        endpoint = f"{self.base_url}/api/sendImage"
+        payload_base = {"session": self.session, "chatId": phone, "caption": caption}
+
+        # 1. Tenta enviar por URL (WAHA busca a imagem)
         try:
             async with httpx.AsyncClient(timeout=15) as c:
-                r = await c.post(url, json={
-                    "session": self.session,
-                    "chatId": phone,
-                    "file": {"url": image_url},
-                    "caption": caption,
+                r = await c.post(endpoint,
+                                 json={**payload_base, "file": {"url": image_url}},
+                                 headers=self._headers)
+                if r.status_code in (200, 201):
+                    return True
+                logger.warning(f"WAHA send_image URL: {r.status_code} — tentando base64")
+        except Exception as e:
+            logger.warning(f"WAHA send_image URL falhou: {e} — tentando base64")
+
+        # 2. Fallback: baixa a imagem e envia como base64
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                img_r = await c.get(image_url, follow_redirects=True,
+                                    headers={"User-Agent": "Mozilla/5.0"})
+                if img_r.status_code != 200:
+                    return False
+                mime = img_r.headers.get("content-type", "image/jpeg").split(";")[0]
+                b64 = base64.b64encode(img_r.content).decode()
+                r = await c.post(endpoint, json={
+                    **payload_base,
+                    "file": {"data": f"data:{mime};base64,{b64}", "mimetype": mime},
                 }, headers=self._headers)
                 return r.status_code in (200, 201)
         except Exception as e:
-            logger.error(f"WAHA send_image error: {e}")
+            logger.error(f"WAHA send_image base64 falhou: {e}")
             return False
 
     async def send_text(self, phone: str, text: str) -> bool:

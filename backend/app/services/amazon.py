@@ -1,7 +1,7 @@
+import asyncio
 import logging
 from urllib.parse import urlencode
 from bs4 import BeautifulSoup
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,8 @@ def _parse_results(html: str, min_val: float, max_val: float) -> list[dict]:
 
 
 async def search(query: str, min_val: float, max_val: float) -> list[dict]:
+    from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+
     url = _build_url(query, min_val, max_val)
 
     browser_cfg = BrowserConfig(
@@ -93,16 +95,31 @@ async def search(query: str, min_val: float, max_val: float) -> list[dict]:
         magic=True,
     )
 
-    try:
-        async with AsyncWebCrawler(config=browser_cfg) as crawler:
-            result = await crawler.arun(url=url, config=run_cfg)
+    # 2 tentativas — Chromium é caro, não vale mais que isso
+    for attempt in range(2):
+        try:
+            async with AsyncWebCrawler(config=browser_cfg) as crawler:
+                result = await crawler.arun(url=url, config=run_cfg)
 
-        if not result.success:
-            logger.warning(f"Amazon crawl failed: {result.error_message}")
-            return []
+            if not result.success:
+                logger.warning("amazon.crawl_failed", extra={"attempt": attempt + 1, "error": result.error_message})
+                if attempt == 0:
+                    await asyncio.sleep(5)
+                    continue
+                return []
 
-        return _parse_results(result.html, min_val, max_val)
+            results = _parse_results(result.html, min_val, max_val)
+            if not results and attempt == 0:
+                logger.warning("amazon.empty_retry", extra={"attempt": attempt + 1})
+                await asyncio.sleep(5)
+                continue
+            return results
 
-    except Exception as e:
-        logger.error(f"Amazon search error: {e}")
-        return []
+        except Exception as e:
+            if attempt == 0:
+                logger.warning("amazon.search_retry", extra={"attempt": attempt + 1, "error": str(e)})
+                await asyncio.sleep(5)
+            else:
+                logger.error("amazon.search_failed", extra={"error": str(e)})
+
+    return []

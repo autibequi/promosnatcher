@@ -20,6 +20,7 @@ export default function Settings() {
     amz_tracking_id: '',
     ml_affiliate_tool_id: '',
     wa_group_prefix: 'Snatcher',
+    alert_phone: '',
   })
   const [newGroupName, setNewGroupName] = useState('')
 
@@ -38,6 +39,7 @@ export default function Settings() {
         amz_tracking_id: config.amz_tracking_id || '',
         ml_affiliate_tool_id: config.ml_affiliate_tool_id || '',
         wa_group_prefix: config.wa_group_prefix ?? 'Snatcher',
+        alert_phone: config.alert_phone || '',
       })
     }
   }, [config])
@@ -96,6 +98,7 @@ export default function Settings() {
       amz_tracking_id: form.amz_tracking_id || undefined,
       ml_affiliate_tool_id: form.ml_affiliate_tool_id || undefined,
       wa_group_prefix: form.wa_group_prefix || null,
+      alert_phone: form.alert_phone || null,
     })
   }
 
@@ -269,6 +272,24 @@ export default function Settings() {
           <div>
             <label className={label}>Mercado Livre Afiliados — Tool ID</label>
             <input className={field} value={form.ml_affiliate_tool_id} onChange={set('ml_affiliate_tool_id')} placeholder="64838818" />
+          </div>
+        </div>
+
+        {/* ── Alertas ──────────────────────────────────────────────── */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-white">Alertas de Falha</h2>
+          <p className="text-xs text-gray-500">
+            Se um grupo falhar 3 scans consecutivos, uma mensagem WA será enviada para o número abaixo.
+          </p>
+          <div>
+            <label className={label}>Número WA do admin</label>
+            <input
+              className={field}
+              value={form.alert_phone}
+              onChange={set('alert_phone')}
+              placeholder="5511999998888@c.us"
+            />
+            <p className="text-xs text-gray-600 mt-1">Formato: código do país + DDD + número + @c.us</p>
           </div>
         </div>
 

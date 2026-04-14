@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from datetime import datetime
@@ -74,6 +75,33 @@ def _format_message(
     return tmpl.format_map(ctx)
 
 
+async def _maybe_send_failure_alert(
+    group: "Group", config: "AppConfig | None", error_msg: str, session: "Session"
+) -> None:
+    """Envia WA ao alert_phone se os últimos 3 scans do grupo falharam."""
+    if not (config and config.alert_phone and config.wa_base_url):
+        return
+    recent = session.exec(
+        select(ScanJob)
+        .where(ScanJob.group_id == group.id)
+        .order_by(ScanJob.started_at.desc())
+        .limit(3)
+    ).all()
+    if len(recent) < 3 or not all(j.status == "error" for j in recent):
+        return
+    adapter = get_adapter(
+        config.wa_provider, config.wa_base_url, config.wa_api_key or "", config.wa_instance or ""
+    )
+    if adapter:
+        msg = (
+            f"⚠️ *Promo Snatcher — Alerta*\n\n"
+            f"Grupo *{group.name}* falhou 3 scans consecutivos.\n\n"
+            f"Último erro: {error_msg[:200]}"
+        )
+        await adapter.send_text(config.alert_phone, msg)
+        logger.warning("scan.alert_sent", extra={"group_id": group.id})
+
+
 async def scan_group(group_id: int):
     with Session(engine) as session:
         group = session.get(Group, group_id)
@@ -85,6 +113,7 @@ async def scan_group(group_id: int):
         session.commit()
         session.refresh(job)
 
+        config = None
         try:
             config = session.get(AppConfig, 1)
 
@@ -125,7 +154,7 @@ async def scan_group(group_id: int):
                             group.wa_group_status = "ok"
                             session.add(group)
                     elif status is False:
-                        logger.warning(f"Grupo WA {wa_group_ids[0]} não encontrado/removido — desabilitando envio")
+                        logger.warning("scan.wa_group_removed", extra={"group_id": group_id})
                         group.wa_group_status = "removed"
                         session.add(group)
                         wa_adapter = None  # não envia mais até o grupo ser revalidado
@@ -177,10 +206,9 @@ async def scan_group(group_id: int):
                             else 0
                         )
                         if drop_pct >= 0.10:
-                            logger.info(
-                                f"Price drop {drop_pct:.0%} on {item['url']} "
-                                f"({stored.price:.2f} → {item['price']:.2f})"
-                            )
+                            logger.info("scan.price_drop", extra={
+                                "group_id": group_id, "drop_pct": f"{drop_pct:.0%}", "url": item["url"]
+                            })
                             stored.sent_at = None
                             if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
                                 msg = _format_message(
@@ -207,7 +235,7 @@ async def scan_group(group_id: int):
             job.finished_at = datetime.utcnow()
             session.add(job)
             session.commit()
-            logger.info(f"Scan group {group_id}: {new_count} new/updated products")
+            logger.info("scan.done", extra={"group_id": group_id, "product_count": new_count})
 
         except Exception as e:
             job.status = "error"
@@ -215,11 +243,22 @@ async def scan_group(group_id: int):
             job.finished_at = datetime.utcnow()
             session.add(job)
             session.commit()
-            logger.error(f"Scan group {group_id} error: {e}")
+            logger.error("scan.error", extra={"group_id": group_id, "error": str(e)})
+            await _maybe_send_failure_alert(group, config, str(e), session)
 
 
 async def scan_all_groups():
     with Session(engine) as session:
         groups = session.exec(select(Group).where(Group.active == True)).all()
-    for group in groups:
-        await scan_group(group.id)
+
+    if not groups:
+        return
+
+    # Semáforo: max 3 grupos simultâneos (Amazon usa Chromium — limita memória)
+    sem = asyncio.Semaphore(3)
+
+    async def _bounded(group_id: int):
+        async with sem:
+            await scan_group(group_id)
+
+    await asyncio.gather(*[_bounded(g.id) for g in groups], return_exceptions=True)

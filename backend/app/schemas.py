@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 
@@ -74,6 +74,13 @@ class ScanJobRead(BaseModel):
         from_attributes = True
 
 
+class ProductsPage(BaseModel):
+    items: List[ProductRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class AppConfigRead(BaseModel):
     wa_provider: str
     wa_base_url: Optional[str]
@@ -85,6 +92,7 @@ class AppConfigRead(BaseModel):
     amz_tracking_id: Optional[str]
     ml_affiliate_tool_id: Optional[str]
     wa_group_prefix: Optional[str]
+    alert_phone: Optional[str]
 
     class Config:
         from_attributes = True
@@ -103,6 +111,7 @@ class AppConfigUpdate(BaseModel):
     amz_tracking_id: Optional[str] = None
     ml_affiliate_tool_id: Optional[str] = None
     wa_group_prefix: Optional[str] = None
+    alert_phone: Optional[str] = None
 
 
 class PriceHistoryRead(BaseModel):

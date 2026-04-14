@@ -1,6 +1,13 @@
 # Promo Snatcher — Makefile
 # Detecta docker compose v2 ou podman-compose
-COMPOSE := $(shell command -v docker 2>/dev/null && docker compose version >/dev/null 2>&1 && echo "docker compose" || command -v podman-compose 2>/dev/null && echo "podman-compose" || echo "docker-compose")
+COMPOSE := $(shell \
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
+    echo "docker compose"; \
+  elif command -v podman-compose >/dev/null 2>&1; then \
+    echo "podman-compose"; \
+  else \
+    echo "docker-compose"; \
+  fi)
 BACKEND_URL := http://localhost:8000
 FRONTEND_URL := http://localhost:6060
 
@@ -26,7 +33,7 @@ setup: ## Primeira execução: cria .env a partir do .env.example
 
 up: ## Build + sobe a stack em background
 	@mkdir -p backend/data
-	$(COMPOSE) up --build -d
+	$(COMPOSE) up --build --remove-orphans -d
 
 down: ## Para e remove os containers
 	$(COMPOSE) down

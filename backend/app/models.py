@@ -72,3 +72,4 @@ class AppConfig(SQLModel, table=True):
     wa_group_prefix: Optional[str] = "Snatcher"
     amz_tracking_id: Optional[str] = None
     ml_affiliate_tool_id: Optional[str] = None
+    alert_phone: Optional[str] = None  # número WA do admin para alertas (ex: "5511999998888@c.us")
