@@ -8,7 +8,7 @@ export default function Frontpage() {
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ['publicGroups'],
     queryFn: getPublicGroups,
-    staleTime: 30000,
+    staleTime: 60000,
   })
 
   return (
@@ -17,15 +17,14 @@ export default function Frontpage() {
       <div className="text-center pt-16 pb-12 px-4">
         <span className="text-6xl">🔥</span>
         <h1 className="text-4xl font-bold text-white mt-4">Promo Snatcher</h1>
-        <p className="text-gray-400 text-lg mt-3 max-w-md mx-auto">
-          Receba as melhores promoções de Mercado Livre e Amazon direto no seu WhatsApp.
-        </p>
       </div>
 
       {/* Groups grid */}
       <div className="max-w-4xl mx-auto px-4 pb-20">
         {isLoading && (
-          <p className="text-center text-gray-500">Carregando grupos...</p>
+          <div className="flex justify-center py-8">
+            <div className="text-gray-500 text-sm">Carregando grupos...</div>
+          </div>
         )}
 
         {!isLoading && groups.length === 0 && (
@@ -36,17 +35,32 @@ export default function Frontpage() {
           {groups.map((g, i) => (
             <div
               key={i}
-              className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col gap-3 hover:border-green-700 transition-colors"
+              className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col gap-4 hover:border-green-700 transition-colors"
             >
-              <h2 className="text-xl font-semibold text-white">{g.name}</h2>
-              {g.description && (
-                <p className="text-sm text-gray-400">{g.description}</p>
-              )}
-              <p className="text-xs text-gray-600 italic">Busca: {g.search_prompt}</p>
-              <div className="mt-auto pt-3">
-                <span className="inline-block text-xs text-gray-500">
-                  Entre no grupo para receber ofertas
-                </span>
+              <div>
+                <h2 className="text-xl font-semibold text-white">{g.name}</h2>
+                {g.description && (
+                  <p className="text-sm text-gray-400 mt-1">{g.description}</p>
+                )}
+                <p className="text-xs text-gray-600 italic mt-2">"{g.search_prompt}"</p>
+              </div>
+
+              <div className="mt-auto">
+                {g.invite_link ? (
+                  <a
+                    href={g.invite_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-xl transition-colors text-sm"
+                  >
+                    <span>📱</span>
+                    <span>Entrar no grupo</span>
+                  </a>
+                ) : (
+                  <div className="text-center text-xs text-gray-600 py-2">
+                    Link em breve
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -54,14 +68,8 @@ export default function Frontpage() {
 
         {/* Footer */}
         <div className="text-center mt-16 pt-8 border-t border-gray-800">
-          <p className="text-gray-600 text-sm">
+          <Link to="/login" className="text-gray-700 hover:text-gray-400 text-xs transition-colors">
             Powered by Promo Snatcher
-          </p>
-          <Link
-            to="/login"
-            className="text-gray-700 hover:text-gray-400 text-xs mt-2 inline-block transition-colors"
-          >
-            Admin
           </Link>
         </div>
       </div>
