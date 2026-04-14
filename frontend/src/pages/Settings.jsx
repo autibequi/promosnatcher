@@ -49,8 +49,7 @@ export default function Settings() {
   const { data: waStatus } = useQuery({
     queryKey: ['waStatus'],
     queryFn: getWAStatus,
-    refetchInterval: (query) =>
-      query.state.data?.status === 'WORKING' ? 30000 : 5000,
+    refetchInterval: 5000,
   })
 
   // Grupos WA
