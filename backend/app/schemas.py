@@ -94,6 +94,7 @@ class AppConfigRead(BaseModel):
     ml_affiliate_tool_id: Optional[str]
     wa_group_prefix: Optional[str]
     alert_phone: Optional[str]
+    use_short_links: bool
 
     class Config:
         from_attributes = True
@@ -113,6 +114,7 @@ class AppConfigUpdate(BaseModel):
     ml_affiliate_tool_id: Optional[str] = None
     wa_group_prefix: Optional[str] = None
     alert_phone: Optional[str] = None
+    use_short_links: Optional[bool] = None
 
 
 class PriceHistoryRead(BaseModel):

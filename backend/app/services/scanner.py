@@ -53,9 +53,10 @@ def _format_message(
 ) -> str:
     price_fmt = f"R$ {product['price']:.2f}".replace(".", ",")
     source_label = "Mercado Livre" if product["source"] == "mercadolivre" else "Amazon"
-    # Short link se disponível, senão fallback direto com afiliado
+    # Short link (com tracking) ou link direto (sem tracking)
+    use_short = config.use_short_links if config else True
     short_id = product.get("short_id")
-    if short_id:
+    if use_short and short_id:
         public_url = os.getenv("PUBLIC_URL", "https://snatcher.autibequi.com")
         url = f"{public_url}/r/{short_id}"
     else:

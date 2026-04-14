@@ -82,6 +82,7 @@ class AppConfig(SQLModel, table=True):
     amz_tracking_id: Optional[str] = None
     ml_affiliate_tool_id: Optional[str] = None
     alert_phone: Optional[str] = None  # número WA do admin para alertas (ex: "5511999998888@c.us")
+    use_short_links: bool = True  # False = envia link direto sem redirect/tracking
 
 
 class ClickLog(SQLModel, table=True):

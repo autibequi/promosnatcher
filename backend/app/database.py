@@ -30,6 +30,7 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN ml_affiliate_tool_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN alert_phone TEXT',
             'ALTER TABLE product ADD COLUMN short_id TEXT',
+            'ALTER TABLE appconfig ADD COLUMN use_short_links BOOLEAN DEFAULT 1',
         ]:
             try:
                 conn.execute(text(stmt))

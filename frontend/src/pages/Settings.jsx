@@ -21,6 +21,7 @@ export default function Settings() {
     ml_affiliate_tool_id: '',
     wa_group_prefix: 'Snatcher',
     alert_phone: '',
+    use_short_links: true,
   })
   useEffect(() => {
     if (config) {
@@ -38,6 +39,7 @@ export default function Settings() {
         ml_affiliate_tool_id: config.ml_affiliate_tool_id || '',
         wa_group_prefix: config.wa_group_prefix ?? 'Snatcher',
         alert_phone: config.alert_phone || '',
+        use_short_links: config.use_short_links ?? true,
       })
     }
   }, [config])
@@ -193,6 +195,31 @@ export default function Settings() {
           <div>
             <label className={label}>Mercado Livre Afiliados — Tool ID</label>
             <input className={field} value={form.ml_affiliate_tool_id} onChange={set('ml_affiliate_tool_id')} placeholder="64838818" />
+          </div>
+        </div>
+
+        {/* ── Short Links / Redirect ─────────────────────────────── */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white">Short Links com Tracking</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                {form.use_short_links
+                  ? 'Links passam pelo redirect com tracking de cliques + GA4'
+                  : 'Links diretos para Amazon/ML (sem tracking)'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, use_short_links: !f.use_short_links }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                form.use_short_links ? 'bg-green-600' : 'bg-gray-700'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                form.use_short_links ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
           </div>
         </div>
 
