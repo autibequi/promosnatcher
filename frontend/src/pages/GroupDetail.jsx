@@ -65,10 +65,17 @@ export default function GroupDetail() {
   })
 
   const linkGroup = useMutation({
-    mutationFn: (waGroupId) => setGroupIds([...linkedIds, waGroupId]),
+    mutationFn: (waGroupId) => {
+      const newIds = [...linkedIds, waGroupId]
+      return setGroupIds(newIds)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', id] })
       setShowWAPicker(false)
+    },
+    onError: (err) => {
+      console.error('linkGroup error:', err)
+      alert('Erro ao vincular grupo: ' + (err?.message || err))
     },
   })
 
