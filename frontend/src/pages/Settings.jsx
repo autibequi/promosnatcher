@@ -8,7 +8,7 @@ export default function Settings() {
   const { data: config, isLoading } = useQuery({ queryKey: ['config'], queryFn: getConfig })
 
   const [form, setForm] = useState({
-    wa_provider: 'waha',
+    wa_provider: 'evolution',
     wa_base_url: '',
     wa_api_key: '',
     wa_instance: 'default',
@@ -107,28 +107,27 @@ export default function Settings() {
 
       <form onSubmit={submit} className="space-y-5">
 
-        {/* ── WhatsApp — WAHA only ── */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white">WhatsApp</h2>
-            <span className="text-xs text-gray-500 font-mono">
-              WAHA {waStatus?.engine?.engine ? `(${waStatus.engine.engine})` : ''}
-            </span>
-          </div>
-          <p className="text-xs text-gray-600 mt-1">Gerenciado pelo painel abaixo.</p>
-        </div>
-
-        {/* ── WAHA Status + QR + Grupos ────────────────────────────── */}
+        {/* ── Evolution API status ── */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white">📱 WhatsApp Status</h2>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColor}`}>
-              {waStatus?.status || '…'}
-            </span>
+            <h2 className="text-base font-semibold text-white">📱 WhatsApp</h2>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                waStatus?.status === 'ERROR' || !waStatus?.status
+                  ? 'bg-red-900 text-red-300'
+                  : 'bg-green-900 text-green-300'
+              }`}>
+                Evolution {waStatus?.status === 'ERROR' || !waStatus?.status ? 'offline' : 'online'}
+              </span>
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColor}`}>
+                {waStatus?.status || '…'}
+              </span>
+            </div>
           </div>
 
           {/* QR iframe quando SCAN_QR_CODE */}
-          {waStatus?.status === 'SCAN_QR_CODE' && (
+          {/* QR code — mostrado em SCAN_QR_CODE ou após iniciar sessão em STOPPED */}
+          {(waStatus?.status === 'SCAN_QR_CODE' || waStatus?.status === 'STARTING') && (
             <div>
               <p className="text-xs text-yellow-400 mb-2">Escaneie o QR com o WhatsApp →</p>
               <iframe src="/api/config/wa/qr"
@@ -138,31 +137,29 @@ export default function Settings() {
           )}
 
           {/* Botão iniciar sessão */}
-          {(waStatus?.status === 'STOPPED' || waStatus?.status === 'NOT_CONFIGURED' || waStatus?.status === 'FAILED') && (
+          {(waStatus?.status === 'STOPPED' || waStatus?.status === 'ERROR' || !waStatus?.status) && (
             <button type="button" onClick={() => startSession.mutate()}
               disabled={startSession.isPending}
               className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm">
-              {startSession.isPending ? '⏳ Iniciando...' : '▶ Iniciar sessão'}
+              {startSession.isPending ? '⏳ Criando instância...' : '▶ Iniciar sessão'}
             </button>
           )}
 
-          {/* Logout quando WORKING */}
+          {/* Conectado */}
           {waStatus?.status === 'WORKING' && (
-            <button type="button"
-              onClick={() => { if (window.confirm('Desconectar o WhatsApp?')) logout.mutate() }}
-              disabled={logout.isPending}
-              className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors">
-              {logout.isPending ? '⏳ Desconectando...' : '🚪 Desconectar WhatsApp'}
-            </button>
-          )}
-
-          {/* Link para gestão de grupos */}
-          {waStatus?.status === 'WORKING' && (
-            <div className="pt-2 border-t border-gray-800">
-              <a href="/admin/whatsapp" className="text-xs text-green-400 hover:text-green-300 transition-colors">
-                📱 Gerenciar grupos WhatsApp →
-              </a>
-            </div>
+            <>
+              <button type="button"
+                onClick={() => { if (window.confirm('Desconectar o WhatsApp?')) logout.mutate() }}
+                disabled={logout.isPending}
+                className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors">
+                {logout.isPending ? '⏳ Desconectando...' : '🚪 Desconectar WhatsApp'}
+              </button>
+              <div className="pt-2 border-t border-gray-800">
+                <a href="/admin/whatsapp" className="text-xs text-green-400 hover:text-green-300 transition-colors">
+                  📱 Gerenciar grupos WhatsApp →
+                </a>
+              </div>
+            </>
           )}
         </div>
 

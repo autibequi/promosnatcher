@@ -1,24 +1,69 @@
 services:
-  waha:
-    image: devlikeapro/waha
-    container_name: promo-snatcher-waha
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    container_name: promo-snatcher-evolution
     ports:
-      - "3200:3000"
-    volumes:
-      - waha_data:/app/.sessions
+      - "3200:8080"
     environment:
-      - WHATSAPP_DEFAULT_ENGINE=NOWEB
-      - WAHA_LOG_LEVEL=warn
-      - WAHA_API_KEY=${WAHA_API_KEY}
-      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
-      - WAHA_DASHBOARD_PASSWORD=${WAHA_API_KEY}
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - SERVER_URL=http://promo-snatcher-evolution:8080
+      - SERVER_PORT=8080
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution:${EVOLUTION_DB_PASS:-evolution}@promo-snatcher-evo-postgres:5432/evolution?schema=evolution_api
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=false
+      - DATABASE_SAVE_DATA_CONTACTS=false
+      - DATABASE_SAVE_DATA_CHATS=false
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://promo-snatcher-evo-redis:6379/0
+      - CACHE_REDIS_PREFIX_KEY=evo
+      - DEL_INSTANCE=false
+      - QRCODE_LIMIT=30
+      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG
+      - LOG_BAILEYS=info
+      - CONFIG_SESSION_PHONE_CLIENT=Promo Snatcher
+      - CONFIG_SESSION_PHONE_NAME=Chrome
+    volumes:
+      - evo_instances:/evolution/instances
+    depends_on:
+      - evo-postgres
+      - evo-redis
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- --header \"X-Api-Key: $WAHA_API_KEY\" http://localhost:3000/api/server/status"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 30s
+      retries: 10
+      start_period: 15s
+
+  evo-proxy:
+    image: nginx:alpine
+    container_name: promo-snatcher-evo-proxy
+    network_mode: "service:evolution"
+    volumes:
+      - ./evo-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - evolution
+    restart: unless-stopped
+
+  evo-postgres:
+    image: postgres:15-alpine
+    container_name: promo-snatcher-evo-postgres
+    environment:
+      - POSTGRES_DB=evolution
+      - POSTGRES_USER=evolution
+      - POSTGRES_PASSWORD=${EVOLUTION_DB_PASS:-evolution}
+    volumes:
+      - evo_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  evo-redis:
+    image: redis:7-alpine
+    container_name: promo-snatcher-evo-redis
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
+    volumes:
+      - evo_redis_data:/data
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -28,14 +73,15 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/data:/app/data
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock:/var/run/podman.sock:ro
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
       - TZ_NAME=${TZ_NAME:-America/Sao_Paulo}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-      - WAHA_URL=http://promo-snatcher-waha:3000
-      - WAHA_SESSION=${WAHA_SESSION:-default}
-      - WAHA_API_KEY=${WAHA_API_KEY}
+      - EVOLUTION_URL=http://promo-snatcher-evolution:8080
+      - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE:-default}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
       - AUTH_USERNAME=${AUTH_USERNAME:-admin}
       - AUTH_PASSWORD=${AUTH_PASSWORD}
       - AUTH_SECRET=${AUTH_SECRET}
@@ -45,9 +91,6 @@ services:
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    depends_on:
-      waha:
-        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -71,8 +114,9 @@ services:
     restart: unless-stopped
     depends_on:
       - frontend
-      - waha
 
 volumes:
-  waha_data:
+  evo_instances:
+  evo_pg_data:
+  evo_redis_data:
   frontend_node_modules:

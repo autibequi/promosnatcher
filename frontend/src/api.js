@@ -22,8 +22,8 @@ api.interceptors.response.use(
   err => {
     if (err.response?.status === 401) {
       const url = err.config?.url || ''
-      const isWAHA = url.includes('/wa/') || url.includes('/config/wa')
-      if (!isWAHA) {
+      const isWAConfig = url.includes('/wa/') || url.includes('/config/wa')
+      if (!isWAConfig) {
         localStorage.removeItem('ph_token')
         window.location.href = '/login'
       }

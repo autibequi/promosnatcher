@@ -14,7 +14,16 @@
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', window.GA_ID);
+        gtag('config', window.GA_ID, { send_page_view: true });
+        // SPA: rastreia navegação entre rotas via History API
+        var _pushState = history.pushState;
+        history.pushState = function() {
+          _pushState.apply(this, arguments);
+          gtag('event', 'page_view', { page_location: location.href, page_title: document.title });
+        };
+        window.addEventListener('popstate', function() {
+          gtag('event', 'page_view', { page_location: location.href, page_title: document.title });
+        });
       }
     </script>
   </head>

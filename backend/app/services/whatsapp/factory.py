@@ -1,4 +1,4 @@
-from .waha import WAHAAdapter
+from .evolution import EvolutionAdapter
 from .base import WhatsAppAdapter
 
 
@@ -8,7 +8,7 @@ def get_adapter(
     api_key: str,
     instance: str,
 ) -> WhatsAppAdapter | None:
-    """Retorna o adapter WAHA. provider e instance são mantidos por compatibilidade."""
+    """Retorna o adapter Evolution API. provider mantido por compatibilidade."""
     if not base_url:
         return None
-    return WAHAAdapter(base_url, api_key or "", instance or "default")
+    return EvolutionAdapter(base_url, api_key or "", instance or "default")

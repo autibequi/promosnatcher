@@ -23,16 +23,20 @@ _REDIRECT_HTML = """<!DOCTYPE html>
 <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
 <script>
 window.dataLayer=window.dataLayer||[];
-function g(){{dataLayer.push(arguments)}}
-g('js',new Date());
-g('config','{ga_id}',{{send_page_view:false}});
-g('event','affiliate_click',{{
+function gtag(){{dataLayer.push(arguments)}}
+gtag('js',new Date());
+gtag('config','{ga_id}',{{
+  page_title:'Redirect - {title}',
+  page_location:window.location.href
+}});
+gtag('event','affiliate_click',{{
+  event_category:'affiliate',
   product_id:'{product_id}',
   product_title:'{title}',
   source:'{source}',
   price:'{price}'
 }});
-setTimeout(function(){{window.location.replace('{url}')}},150);
+setTimeout(function(){{window.location.replace('{url}')}},200);
 </script>
 <noscript><meta http-equiv="refresh" content="0;url={url}"></noscript>
 </head><body></body></html>"""

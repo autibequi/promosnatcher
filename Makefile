@@ -28,7 +28,7 @@ setup: ## Primeira execução: cria .env a partir do .env.example
 		echo ".env já existe — edite-o para atualizar as configurações"; \
 	else \
 		cp .env.example .env; \
-		echo "✓ .env criado. Preencha os campos OBRIGATÓRIOS (AUTH_PASSWORD, AUTH_SECRET, WAHA_API_KEY, CLOUDFLARE_TOKEN) e rode 'make up'"; \
+		echo "✓ .env criado. Preencha os campos OBRIGATÓRIOS (AUTH_PASSWORD, AUTH_SECRET, EVOLUTION_API_KEY, CLOUDFLARE_TOKEN) e rode 'make start'"; \
 	fi
 
 start: down ## Produção: rebuild + sobe do zero
@@ -69,7 +69,7 @@ dev: ## Modo dev com hot-reload (backend uvicorn --reload + frontend vite dev)
 	@echo "🔥 Dev mode — hot-reload ativo"
 	@echo "   Frontend: http://localhost:6060 (Vite HMR)"
 	@echo "   Backend:  http://localhost:8000 (uvicorn --reload)"
-	@echo "   WAHA:     http://localhost:3200"
+	@echo "   Evolution: http://localhost:3200"
 	@echo "   Logs:     make dev-logs"
 
 dev-down: ## Para o ambiente dev

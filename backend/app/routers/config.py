@@ -50,51 +50,47 @@ def update_config(data: AppConfigUpdate, session: Session = Depends(get_session)
 
 @router.get("/wa/qr", response_class=HTMLResponse)
 async def wa_qr(session: Session = Depends(get_session)):
-    """Página HTML com QR code. Funciona para WAHA e Evolution API."""
+    """Página HTML com QR code para conectar WhatsApp."""
     config = _get_or_create_config(session)
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
+                          config.wa_api_key or "", config.wa_instance or "")
+    if not adapter:
+        raise HTTPException(400, "WhatsApp não configurado")
 
-    if config.wa_provider == "waha":
-        adapter = get_adapter("waha", config.wa_base_url or "",
-                              config.wa_api_key or "", config.wa_instance or "")
-        if not adapter:
-            raise HTTPException(400, "WAHA não configurado")
+    status_data = await adapter.get_session_status()
+    wa_status = status_data.get("status", "UNKNOWN")
 
-        status_data = await adapter.get_session_status()
-        wa_status = status_data.get("status", "UNKNOWN")
-
-        if wa_status == "WORKING":
-            return HTMLResponse("""<!DOCTYPE html><html><head><meta charset="utf-8">
-            <title>WhatsApp Conectado</title>
-            <style>body{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}</style>
-            </head><body><h2>✅ WhatsApp Conectado!</h2>
-            <p>Sessão ativa. Pode fechar esta página.</p>
-            <script>setTimeout(()=>location.reload(),30000)</script>
-            </body></html>""")
-
-        qr = await adapter.get_qr_code()
-        if qr:
-            return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-            <title>WhatsApp QR</title>
-            <style>body{{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}}
-            img{{border:8px solid white;border-radius:8px;width:380px;max-width:90vw}}</style>
-            </head><body>
-            <h2>📱 Escanear QR</h2>
-            <p>WhatsApp → Dispositivos conectados → Conectar dispositivo</p>
-            <img src="{qr}" alt="QR Code" />
-            <p style="color:#888;font-size:12px">Recarrega em 8s</p>
-            <script>setTimeout(()=>location.reload(),8000)</script>
-            </body></html>""")
-
-        return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-        <title>WhatsApp</title>
-        <style>body{{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}}</style>
-        </head><body>
-        <h2>Status: {wa_status}</h2>
-        <p>Aguardando QR code... recarregando em 5s</p>
-        <script>setTimeout(()=>location.reload(),5000)</script>
+    if wa_status == "WORKING":
+        return HTMLResponse("""<!DOCTYPE html><html><head><meta charset="utf-8">
+        <title>WhatsApp Conectado</title>
+        <style>body{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}</style>
+        </head><body><h2>✅ WhatsApp Conectado!</h2>
+        <p>Sessão ativa. Pode fechar esta página.</p>
+        <script>setTimeout(()=>location.reload(),30000)</script>
         </body></html>""")
 
-    raise HTTPException(400, "Apenas WAHA suportado. Verifique a configuração.")
+    qr = await adapter.get_qr_code()
+    if qr:
+        return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+        <title>WhatsApp QR</title>
+        <style>body{{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}}
+        img{{border:8px solid white;border-radius:8px;width:380px;max-width:90vw}}</style>
+        </head><body>
+        <h2>📱 Escanear QR</h2>
+        <p>WhatsApp → Dispositivos conectados → Conectar dispositivo</p>
+        <img src="{qr}" alt="QR Code" />
+        <p style="color:#888;font-size:12px">Recarrega em 8s</p>
+        <script>setTimeout(()=>location.reload(),8000)</script>
+        </body></html>""")
+
+    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>WhatsApp</title>
+    <style>body{{font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#eee}}</style>
+    </head><body>
+    <h2>Status: {wa_status}</h2>
+    <p>Aguardando QR code... recarregando em 5s</p>
+    <script>setTimeout(()=>location.reload(),5000)</script>
+    </body></html>""")
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +101,7 @@ async def wa_qr(session: Session = Depends(get_session)):
 async def wa_status(session: Session = Depends(get_session)):
     """Status da sessão WAHA: STOPPED | STARTING | SCAN_QR_CODE | WORKING"""
     config = _get_or_create_config(session)
-    adapter = get_adapter("waha", config.wa_base_url or "",
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
     if not adapter:
         return {"status": "NOT_CONFIGURED"}
@@ -116,10 +112,10 @@ async def wa_status(session: Session = Depends(get_session)):
 async def wa_logout_session(session: Session = Depends(get_session)):
     """Desconecta o WhatsApp (logout da sessão WAHA)."""
     config = _get_or_create_config(session)
-    adapter = get_adapter("waha", config.wa_base_url or "",
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
     if not adapter:
-        raise HTTPException(400, "WAHA não configurado")
+        raise HTTPException(400, "WhatsApp não configurado")
     ok = await adapter.logout_session()
     return {"logged_out": ok}
 
@@ -128,10 +124,10 @@ async def wa_logout_session(session: Session = Depends(get_session)):
 async def wa_start_session(session: Session = Depends(get_session)):
     """Inicia/cria sessão WAHA."""
     config = _get_or_create_config(session)
-    adapter = get_adapter("waha", config.wa_base_url or "",
+    adapter = get_adapter(config.wa_provider, config.wa_base_url or "",
                           config.wa_api_key or "", config.wa_instance or "")
     if not adapter:
-        raise HTTPException(400, "WAHA não configurado (wa_base_url ausente)")
+        raise HTTPException(400, "WhatsApp não configurado (wa_base_url ausente)")
     ok = await adapter.start_session()
     return {"started": ok}
 
@@ -146,7 +142,16 @@ async def list_wa_groups(session: Session = Depends(get_session)):
         raise HTTPException(400, "WhatsApp não configurado")
     if not hasattr(adapter, "list_groups"):
         raise HTTPException(400, "Provider não suporta listagem de grupos")
-    groups = await adapter.list_groups()
+
+    # Busca JIDs vinculados no nosso DB para buscar individualmente (evita fetchAllGroups)
+    from ..models import Group as GroupModel
+    from ..services.scanner import _parse_group_ids
+    db_groups = session.exec(select(GroupModel).where(GroupModel.whatsapp_group_id.is_not(None))).all()
+    known_jids = []
+    for g in db_groups:
+        known_jids.extend(_parse_group_ids(g.whatsapp_group_id))
+
+    groups = await adapter.list_groups(group_jids=known_jids if known_jids else None)
     prefix = config.wa_group_prefix or ""
     if prefix:
         groups = [g for g in groups if g["name"].startswith(prefix)]
@@ -184,7 +189,7 @@ async def create_wa_group_via_config(
         logger.info(f"Grupo WA criado: {wa_id} ({full_name})")
         return {"message": f"Grupo '{full_name}' criado", "group_id": wa_id, "invite_link": invite}
 
-    raise HTTPException(422, f"Falha ao criar grupo WA '{full_name}'. Verifique os logs do WAHA.")
+    raise HTTPException(422, f"Falha ao criar grupo WA '{full_name}'. Verifique os logs do Evolution.")
 
 
 @router.get("/wa/groups/{group_id}/invite")
