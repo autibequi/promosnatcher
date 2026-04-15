@@ -143,15 +143,7 @@ async def list_wa_groups(session: Session = Depends(get_session)):
     if not hasattr(adapter, "list_groups"):
         raise HTTPException(400, "Provider não suporta listagem de grupos")
 
-    # Busca JIDs vinculados no nosso DB para buscar individualmente (evita fetchAllGroups)
-    from ..models import Group as GroupModel
-    from ..services.scanner import _parse_group_ids
-    db_groups = session.exec(select(GroupModel).where(GroupModel.whatsapp_group_id.is_not(None))).all()
-    known_jids = []
-    for g in db_groups:
-        known_jids.extend(_parse_group_ids(g.whatsapp_group_id))
-
-    groups = await adapter.list_groups(group_jids=known_jids if known_jids else None)
+    groups = await adapter.list_groups()
     prefix = config.wa_group_prefix or ""
     if prefix:
         groups = [g for g in groups if g["name"].startswith(prefix)]

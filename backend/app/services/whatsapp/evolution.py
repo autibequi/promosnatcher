@@ -114,32 +114,11 @@ class EvolutionAdapter(WhatsAppAdapter):
         except Exception:
             return None
 
-    async def list_groups(self, group_jids: list[str] | None = None) -> list[dict]:
-        """Lista grupos WA. Se group_jids fornecido, busca cada um individualmente.
-        Senão, tenta fetchAllGroups (pode falhar com muitos grupos em Podman)."""
-        # Busca individual por JID — rápido, resposta pequena, funciona sempre
-        if group_jids:
-            results = []
-            async with httpx.AsyncClient(timeout=8) as c:
-                for jid in group_jids:
-                    try:
-                        url = f"{self.base_url}/group/findGroupInfos/{self.instance}"
-                        r = await c.get(url, params={"groupJid": jid}, headers=self._headers)
-                        if r.status_code == 200:
-                            g = r.json()
-                            results.append({
-                                "id": g.get("id", jid),
-                                "name": g.get("subject") or g.get("name") or "Sem nome",
-                                "size": g.get("size") or len(g.get("participants", [])),
-                            })
-                    except Exception:
-                        results.append({"id": jid, "name": jid[:20], "size": 0})
-            return sorted(results, key=lambda x: x["name"].lower())
-
-        # Fallback: fetchAllGroups (funciona com poucos grupos)
+    async def list_groups(self) -> list[dict]:
+        """Lista todos os grupos via fetchAllGroups; o router filtra pelo prefixo."""
         url = f"{self.base_url}/group/fetchAllGroups/{self.instance}?getParticipants=false"
         try:
-            async with httpx.AsyncClient(timeout=10) as c:
+            async with httpx.AsyncClient(timeout=120) as c:
                 r = await c.get(url, headers=self._headers)
             if r.status_code == 200:
                 data = r.json()
