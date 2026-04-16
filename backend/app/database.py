@@ -39,6 +39,8 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN tg_bot_username TEXT',
             "ALTER TABLE appconfig ADD COLUMN tg_group_prefix TEXT DEFAULT 'Snatcher'",
             'ALTER TABLE appconfig ADD COLUMN tg_last_update_id INTEGER',
+            # Family grouping
+            'ALTER TABLE product ADD COLUMN family_key TEXT',
         ]:
             try:
                 conn.execute(text(stmt))
@@ -48,6 +50,7 @@ def migrate_db():
 
     # Backfill short_ids para produtos existentes sem um
     _backfill_short_ids()
+    _backfill_family_keys()
 
 
 def _backfill_short_ids():
@@ -59,6 +62,23 @@ def _backfill_short_ids():
             session.execute(
                 text("UPDATE product SET short_id = :sid WHERE id = :pid"),
                 {"sid": _gen_short_id(), "pid": pid},
+            )
+        if rows:
+            session.commit()
+
+
+def _backfill_family_keys():
+    """Computa family_key para produtos existentes que não têm."""
+    from .services.scanner import _normalize_title
+    with Session(engine) as session:
+        rows = session.exec(
+            text("SELECT id, title FROM product WHERE family_key IS NULL")
+        ).all()
+        for pid, title in rows:
+            fk = _normalize_title(title)
+            session.execute(
+                text("UPDATE product SET family_key = :fk WHERE id = :pid"),
+                {"fk": fk, "pid": pid},
             )
         if rows:
             session.commit()

@@ -40,6 +40,7 @@ class Product(SQLModel, table=True):
     image_url: Optional[str] = None
     source: str  # "mercadolivre" | "amazon"
     short_id: str = Field(default_factory=_gen_short_id, index=True)
+    family_key: Optional[str] = None  # título normalizado para agrupar variantes
     found_at: datetime = Field(default_factory=datetime.utcnow)
     sent_at: Optional[datetime] = None
 

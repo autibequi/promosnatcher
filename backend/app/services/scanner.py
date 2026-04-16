@@ -1,7 +1,11 @@
 import asyncio
+import json as _json
 import logging
 import os
+import re
 from datetime import datetime
+from difflib import SequenceMatcher
+
 import pytz
 from sqlmodel import Session, select
 
@@ -20,8 +24,66 @@ DEFAULT_TEMPLATE = (
 
 PRICE_DROP_BADGE = "*QUEDA DE PREÇO*\n\n"
 
+# ---------------------------------------------------------------------------
+# Family grouping — agrupa variantes de sabor/cor do mesmo produto
+# ---------------------------------------------------------------------------
 
-import json as _json
+_VARIANT_SUFFIXES = {
+    # sabores
+    "baunilha", "chocolate", "morango", "banana", "coco", "amendoim",
+    "cookies", "brigadeiro", "cappuccino", "caramelo", "limao", "limão",
+    "natural", "neutro", "original", "tradicional",
+    "ninho", "avela", "avelã", "pistache", "cafe", "café",
+    "menta", "laranja", "abacaxi", "uva", "maracuja", "maracujá",
+    "baunilia",  # typo comum
+    # cores
+    "preto", "branco", "azul", "vermelho", "rosa", "cinza",
+    "black", "white", "blue", "red", "pink", "grey",
+}
+
+_MULTI_WORD_VARIANTS = [
+    "ninho c avela", "ninho c avelã", "ninho com avela", "ninho com avelã",
+    "doce de leite", "torta de limao", "torta de limão",
+    "frutas vermelhas", "cookies cream", "cookies and cream",
+    "dulce de leche", "sem sabor",
+]
+
+
+def _normalize_title(title: str) -> str:
+    """Normaliza título removendo variantes de sabor/cor para agrupamento."""
+    t = title.lower().strip()
+    # Remove conteúdo entre parênteses: "(Baunilha)", "(todos Os Sabores)"
+    t = re.sub(r"\([^)]*\)", "", t)
+    # Remove multi-word variants do final (checar mais longos primeiro)
+    t_stripped = t.strip()
+    for mv in sorted(_MULTI_WORD_VARIANTS, key=len, reverse=True):
+        if t_stripped.endswith(mv):
+            t_stripped = t_stripped[: -len(mv)]
+            break
+    t = t_stripped
+    # Remove single-word variant suffixes do final
+    words = t.split()
+    while words and words[-1].strip("- /|,") in _VARIANT_SUFFIXES:
+        words.pop()
+    t = " ".join(words)
+    # Limpa separadores e whitespace
+    t = re.sub(r"[\s\-–—]+", " ", t).strip().rstrip("- /|,").strip()
+    return t
+
+
+def _compute_family_key(
+    title: str,
+    existing_keys: dict[str, str],
+    threshold: float = 0.82,
+) -> str:
+    """Retorna family_key: match exato, fuzzy, ou nova key."""
+    norm = _normalize_title(title)
+    if norm in existing_keys:
+        return existing_keys[norm]
+    for key_norm, fk in existing_keys.items():
+        if SequenceMatcher(None, norm, key_norm).ratio() >= threshold:
+            return fk
+    return norm
 
 
 def _parse_group_ids(raw: str | None) -> list[str]:
@@ -124,6 +186,24 @@ def _already_sent(session: "Session", product_id: int, provider: str, chat_id: s
     return existing is not None
 
 
+def _family_already_sent(session: "Session", family_key: str | None, group_id: int, provider: str, chat_id: str) -> bool:
+    """Verifica se algum produto da mesma família já foi enviado neste chat."""
+    if not family_key:
+        return False
+    existing = session.exec(
+        select(SentMessage).join(
+            Product, SentMessage.product_id == Product.id
+        ).where(
+            Product.family_key == family_key,
+            Product.group_id == group_id,
+            SentMessage.provider == provider,
+            SentMessage.chat_id == chat_id,
+            SentMessage.is_drop == False,
+        )
+    ).first()
+    return existing is not None
+
+
 async def _maybe_send_failure_alert(
     group: "Group", config: "AppConfig | None", error_msg: str, session: "Session"
 ) -> None:
@@ -216,12 +296,34 @@ async def scan_group(group_id: int):
                             session.add(group)
                             adapters = [(p, a, c) for p, a, c in adapters if p != "telegram"]
 
+            # Pré-computa family_keys existentes para agrupamento
+            existing_fks: dict[str, str] = {}
+            for p in existing.values():
+                norm = _normalize_title(p.title)
+                existing_fks[norm] = p.family_key or norm
+
+            # Calcula family_key e identifica representante (mais barato) por família
+            # em uma única passagem — evita inconsistências por mutação do dicionário
+            url_to_family_key: dict[str, str] = {}
+            new_by_family: dict[str, list[dict]] = {}
+            for item in all_results:
+                if item["url"] not in existing:
+                    fk = _compute_family_key(item["title"], existing_fks)
+                    url_to_family_key[item["url"]] = fk
+                    new_by_family.setdefault(fk, []).append(item)
+                    existing_fks[_normalize_title(item["title"])] = fk
+            representatives = set()
+            for fk, items in new_by_family.items():
+                cheapest = min(items, key=lambda x: x["price"])
+                representatives.add(cheapest["url"])
+
             new_count = 0
             for item in all_results:
                 stored = existing.get(item["url"])
 
                 if stored is None:
-                    # Produto novo — criar primeiro para obter short_id
+                    # Produto novo — usar family_key já calculado
+                    family_key = url_to_family_key[item["url"]]
                     product = Product(
                         group_id=group_id,
                         title=item["title"],
@@ -229,20 +331,22 @@ async def scan_group(group_id: int):
                         url=item["url"],
                         image_url=item.get("image_url"),
                         source=item["source"],
+                        family_key=family_key,
                     )
                     session.add(product)
                     session.flush()  # obtém product.id + short_id
                     session.add(PriceHistory(product_id=product.id, price=item["price"]))
 
-                    # Enviar multi-provider (WA + TG) com dedup
-                    if adapters and _within_send_window(config.send_start_hour, config.send_end_hour):
+                    # Enviar multi-provider — só representante da família
+                    is_representative = item["url"] in representatives
+                    if is_representative and adapters and _within_send_window(config.send_start_hour, config.send_end_hour):
                         item_with_short = {**item, "short_id": product.short_id}
                         msg = _format_message(item_with_short, group.name, group.message_template, config=config)
                         img = item.get("image_url")
                         any_sent = False
                         for provider, adapter, chat_ids in adapters:
                             for cid in chat_ids:
-                                if _already_sent(session, product.id, provider, cid, False):
+                                if _family_already_sent(session, family_key, group_id, provider, cid):
                                     continue
                                 ok = False
                                 if img:

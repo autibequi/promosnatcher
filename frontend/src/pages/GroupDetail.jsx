@@ -5,6 +5,29 @@ import { getGroup, getProducts, deleteGroup, createWAGroup, updateGroup, getWAGr
 import ScanStatus from '../components/ScanStatus'
 import ProductCard from '../components/ProductCard'
 
+function ProductFamily({ products }) {
+  const [expanded, setExpanded] = useState(false)
+  const cheapest = products[0] // já ordenado por preço
+  const others = products.slice(1)
+
+  return (
+    <div className="border border-gray-700 rounded-xl overflow-hidden">
+      <ProductCard product={cheapest} />
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full bg-gray-800 hover:bg-gray-750 text-gray-400 text-xs py-2 border-t border-gray-700 transition-colors"
+      >
+        {expanded ? '▲ Ocultar' : '▼'} +{others.length} variante{others.length > 1 ? 's' : ''} (mesmo produto)
+      </button>
+      {expanded && (
+        <div className="space-y-px bg-gray-800">
+          {others.map(p => <ProductCard key={p.id} product={p} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function GroupDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -38,6 +61,18 @@ export default function GroupDetail() {
   const products = productsPage?.items ?? []
   const total = productsPage?.total ?? 0
   const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  // Agrupa produtos por family_key para colapsar variantes
+  const grouped = useMemo(() => {
+    const map = new Map()
+    for (const p of products) {
+      const key = p.family_key || `solo_${p.id}`
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(p)
+    }
+    for (const [, items] of map) items.sort((a, b) => a.price - b.price)
+    return [...map.values()]
+  }, [products])
 
   const del = useMutation({
     mutationFn: () => deleteGroup(id),
@@ -257,7 +292,11 @@ export default function GroupDetail() {
         )}
 
         <div className="space-y-3">
-          {products.map(p => <ProductCard key={p.id} product={p} />)}
+          {grouped.map(group => (
+            group.length === 1
+              ? <ProductCard key={group[0].id} product={group[0]} />
+              : <ProductFamily key={group[0].family_key || group[0].id} products={group} />
+          ))}
         </div>
 
         {totalPages > 1 && (

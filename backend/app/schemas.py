@@ -59,6 +59,7 @@ class ProductRead(BaseModel):
     image_url: Optional[str]
     source: str
     short_id: Optional[str]
+    family_key: Optional[str]
     found_at: datetime
     sent_at: Optional[datetime]
 
