@@ -86,4 +86,34 @@ export const getAnalyticsSummary = (days = 30) =>
 export const getAnalyticsByGroup = (days = 30) =>
   api.get('/analytics/by-group', { params: { days } }).then(r => r.data)
 
+// v2 — Search Terms (Crawlers)
+export const getSearchTerms = () => api.get('/search-terms').then(r => r.data)
+export const createSearchTerm = (data) => api.post('/search-terms', data).then(r => r.data)
+export const updateSearchTerm = (id, data) => api.put(`/search-terms/${id}`, data).then(r => r.data)
+export const deleteSearchTerm = (id) => api.delete(`/search-terms/${id}`)
+export const crawlSearchTerm = (id) => api.post(`/search-terms/${id}/crawl`).then(r => r.data)
+export const getCrawlResults = (termId, params = {}) => api.get(`/search-terms/${termId}/results`, { params }).then(r => r.data)
+
+// v2 — Catalog
+export const getCatalogProducts = (params = {}) => api.get('/catalog', { params }).then(r => r.data)
+export const getCatalogProduct = (id) => api.get(`/catalog/${id}`).then(r => r.data)
+export const updateCatalogProduct = (id, data) => api.put(`/catalog/${id}`, data).then(r => r.data)
+export const getCatalogVariants = (productId) => api.get(`/catalog/${productId}/variants`).then(r => r.data)
+export const getVariantHistory = (variantId) => api.get(`/catalog/variants/${variantId}/history`).then(r => r.data)
+export const getKeywords = () => api.get('/catalog/keywords').then(r => r.data)
+export const createKeyword = (data) => api.post('/catalog/keywords', data).then(r => r.data)
+export const deleteKeyword = (id) => api.delete(`/catalog/keywords/${id}`)
+
+// v2 — Channels
+export const getChannels = () => api.get('/channels').then(r => r.data)
+export const createChannel = (data) => api.post('/channels', data).then(r => r.data)
+export const getChannel = (id) => api.get(`/channels/${id}`).then(r => r.data)
+export const updateChannel = (id, data) => api.put(`/channels/${id}`, data).then(r => r.data)
+export const deleteChannel = (id) => api.delete(`/channels/${id}`)
+export const addChannelTarget = (channelId, data) => api.post(`/channels/${channelId}/targets`, data).then(r => r.data)
+export const removeChannelTarget = (channelId, targetId) => api.delete(`/channels/${channelId}/targets/${targetId}`)
+export const addChannelRule = (channelId, data) => api.post(`/channels/${channelId}/rules`, data).then(r => r.data)
+export const updateChannelRule = (channelId, ruleId, data) => api.put(`/channels/${channelId}/rules/${ruleId}`, data).then(r => r.data)
+export const deleteChannelRule = (channelId, ruleId) => api.delete(`/channels/${channelId}/rules/${ruleId}`)
+
 export default api

@@ -9,6 +9,9 @@ import Analytics from './pages/Analytics'
 import WAGroups from './pages/WAGroups'
 import TGGroups from './pages/TGGroups'
 import Products from './pages/Products'
+import Crawlers from './pages/Crawlers'
+import Catalog from './pages/Catalog'
+import Channels from './pages/Channels'
 import Login from './pages/Login'
 
 function AdminNav({ onLogout }) {
@@ -21,10 +24,10 @@ function AdminNav({ onLogout }) {
     <nav className="border-b border-gray-800 bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 sm:gap-4 flex-wrap">
         <span className="text-green-400 font-bold text-lg mr-2 sm:mr-4">🔥 <span className="hidden sm:inline">Promo Snatcher</span></span>
-        <NavLink to="/admin" end className={link}>Canais</NavLink>
-        <NavLink to="/admin/products" className={link}>Produtos</NavLink>
-        <NavLink to="/admin/whatsapp" className={link}>WhatsApp</NavLink>
-        <NavLink to="/admin/telegram" className={link}>Telegram</NavLink>
+        <NavLink to="/admin" end className={link}>Home</NavLink>
+        <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
+        <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
+        <NavLink to="/admin/channels" className={link}>Canais</NavLink>
         <NavLink to="/admin/analytics" className={link}>Analytics</NavLink>
         <NavLink to="/admin/settings" className={link}>Config</NavLink>
         <div className="ml-auto">
@@ -97,6 +100,25 @@ export default function App() {
             <main className="max-w-6xl mx-auto px-4 py-8"><Settings /></main>
           </RequireAuth>
         } />
+        <Route path="/admin/crawlers" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><Crawlers /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/catalog" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><Catalog /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/channels" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8"><Channels /></main>
+          </RequireAuth>
+        } />
+        {/* Legacy routes */}
         <Route path="/admin/products" element={
           <RequireAuth>
             <AdminNav onLogout={logout} />
