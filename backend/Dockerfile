@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Instala Chromium no build (não no runtime — evita download na inicialização)
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN crawl4ai-setup || python -m playwright install --with-deps chromium
+RUN python -m playwright install --with-deps chromium || crawl4ai-setup
 
 COPY . .
 

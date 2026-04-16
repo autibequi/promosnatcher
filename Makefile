@@ -13,7 +13,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup start up down dev dev-down dev-logs logs logs-backend logs-frontend \
+.PHONY: help setup start start-tunnel up down dev dev-down dev-logs logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network
 
 help: ## Mostra este help
@@ -23,17 +23,45 @@ help: ## Mostra este help
 # Stack
 # ---------------------------------------------------------------------------
 
-setup: ## Primeira execução: cria .env a partir do .env.example
-	@if [ -f .env ]; then \
-		echo ".env já existe — edite-o para atualizar as configurações"; \
-	else \
+setup: ## Primeira execução: cria .env e gera segredos automáticos
+	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
-		echo "✓ .env criado. Preencha os campos OBRIGATÓRIOS (AUTH_PASSWORD, AUTH_SECRET, EVOLUTION_API_KEY, CLOUDFLARE_TOKEN) e rode 'make start'"; \
+		echo "✓ .env criado a partir do .env.example"; \
+	else \
+		echo ".env já existe — pulando cópia"; \
 	fi
+	@python3 -c "\
+import re, secrets, pathlib; \
+p = pathlib.Path('.env'); \
+env = p.read_text(); \
+changed = False; \
+lines = []; \
+for line in env.splitlines(): \
+    if line.startswith('AUTH_SECRET=') and not line.split('=',1)[1].strip(): \
+        line = 'AUTH_SECRET=' + secrets.token_hex(32); changed = True; \
+    lines.append(line); \
+p.write_text('\n'.join(lines) + '\n') if changed else None; \
+print('✓ AUTH_SECRET gerado automaticamente') if changed else None"
+	@echo ""
+	@echo "Próximos passos:"
+	@echo "  1. Edite .env e defina: AUTH_PASSWORD, EVOLUTION_API_KEY"
+	@echo "  2. Opcional (acesso externo): CLOUDFLARE_TOKEN"
+	@echo "  3. make start"
 
-start: down ## Produção: rebuild + sobe do zero
+start: ## Produção: rebuild + sobe (sem derrubar stack existente)
+	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
 	$(COMPOSE) up --build --remove-orphans -d
+	@echo ""
+	@echo "Stack no ar: http://$$(hostname -I | awk '{print $$1}'):$${FRONTEND_PORT:-6060}"
+	@echo "Logs: make logs  |  Status: make status"
+
+start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env)
+	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
+	@mkdir -p backend/data
+	COMPOSE_PROFILES=tunnel $(COMPOSE) up --build --remove-orphans -d
+	@echo ""
+	@echo "Stack + Tunnel no ar. Logs: make logs"
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data

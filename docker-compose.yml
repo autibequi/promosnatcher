@@ -1,6 +1,7 @@
 services:
   evolution:
     image: evoapicloud/evolution-api:v2.3.1
+    platform: linux/arm64
     container_name: promo-snatcher-evolution
     ports:
       - "127.0.0.1:3200:8080"
@@ -48,6 +49,7 @@ services:
 
   evo-postgres:
     image: postgres:15-alpine
+    platform: linux/arm64
     container_name: promo-snatcher-evo-postgres
     environment:
       - POSTGRES_DB=evolution
@@ -70,7 +72,6 @@ services:
     container_name: promo-snatcher-backend
     volumes:
       - ./backend/data:/app/data
-      - ${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock:/var/run/podman.sock:ro
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
@@ -83,7 +84,7 @@ services:
       - AUTH_PASSWORD=${AUTH_PASSWORD}
       - AUTH_SECRET=${AUTH_SECRET}
       - AMZ_TRACKING_ID=${AMZ_TRACKING_ID:-}
-      - PUBLIC_URL=${PUBLIC_URL:-https://snatcher.autibequi.com}
+      - PUBLIC_URL=${PUBLIC_URL}
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
@@ -98,6 +99,8 @@ services:
   frontend:
     build: ./frontend
     container_name: promo-snatcher-frontend
+    ports:
+      - "${FRONTEND_PORT:-6060}:80"
     environment:
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
     depends_on:
@@ -110,6 +113,7 @@ services:
     container_name: promo-snatcher-cloudflared
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
     restart: unless-stopped
+    profiles: [tunnel]
     depends_on:
       - frontend
 
