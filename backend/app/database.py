@@ -81,7 +81,7 @@ def _backfill_family_keys():
         updated = 0
 
         for (group_id,) in groups:
-            products = session.exec(
+            products = session.execute(
                 text("SELECT id, title, family_key FROM product WHERE group_id = :gid ORDER BY found_at ASC"),
                 {"gid": group_id},
             ).all()
