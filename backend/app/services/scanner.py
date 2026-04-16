@@ -3,6 +3,7 @@ import json as _json
 import logging
 import os
 import re
+import unicodedata
 from datetime import datetime
 from difflib import SequenceMatcher
 
@@ -28,56 +29,102 @@ PRICE_DROP_BADGE = "*QUEDA DE PREÇO*\n\n"
 # Family grouping — agrupa variantes de sabor/cor do mesmo produto
 # ---------------------------------------------------------------------------
 
-_VARIANT_SUFFIXES = {
-    # sabores
+# Sabores, cores e variantes comuns em e-commerce BR
+_VARIANT_WORDS = {
     "baunilha", "chocolate", "morango", "banana", "coco", "amendoim",
-    "cookies", "brigadeiro", "cappuccino", "caramelo", "limao", "limão",
+    "cookies", "brigadeiro", "cappuccino", "caramelo", "limao",
     "natural", "neutro", "original", "tradicional",
-    "ninho", "avela", "avelã", "pistache", "cafe", "café",
-    "menta", "laranja", "abacaxi", "uva", "maracuja", "maracujá",
-    "baunilia",  # typo comum
+    "ninho", "avela", "pistache", "cafe", "menta", "laranja",
+    "abacaxi", "uva", "maracuja", "baunilia",
     # cores
     "preto", "branco", "azul", "vermelho", "rosa", "cinza",
     "black", "white", "blue", "red", "pink", "grey",
 }
 
-_MULTI_WORD_VARIANTS = [
-    "ninho c avela", "ninho c avelã", "ninho com avela", "ninho com avelã",
-    "doce de leite", "torta de limao", "torta de limão",
+# Embalagem — não distingue produto base
+_PACKAGING_WORDS = {
+    "pote", "sache", "pouch", "bag", "caixa", "pct", "pacote",
+    "lata", "bisnaga", "frasco", "display", "refil",
+}
+
+# Palavras genéricas de e-commerce que não identificam o produto
+_NOISE_WORDS = {
+    "sabor", "sabores", "todos", "os", "em", "de", "da", "do",
+    "e", "com", "para", "novo", "todos", "varios",
+}
+
+# Peso/volume — capturado separadamente para não confundir com nome
+_WEIGHT_RE = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l|lb)\b", re.IGNORECASE)
+
+# Variantes multi-palavra
+_MULTI_WORD_VARIANTS = {
+    "ninho c avela", "ninho com avela",
+    "doce de leite", "torta de limao",
     "frutas vermelhas", "cookies cream", "cookies and cream",
     "dulce de leche", "sem sabor",
-]
+}
+
+
+def _deaccent(text: str) -> str:
+    """Remove acentos para normalização cross-brand (Integralmédica = Integralmedica)."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def _is_variant_token(tok: str) -> bool:
+    """Retorna True se o token é variante ou typo próximo de uma variante."""
+    if tok in _VARIANT_WORDS:
+        return True
+    # Typo tolerance: "baunilhaa" → baunilha, ratio > 0.85
+    if len(tok) >= 5:
+        for v in _VARIANT_WORDS:
+            if len(v) >= 4 and SequenceMatcher(None, tok, v).ratio() > 0.85:
+                return True
+    return False
 
 
 def _normalize_title(title: str) -> str:
-    """Normaliza título removendo variantes de sabor/cor para agrupamento."""
-    t = title.lower().strip()
-    # Remove conteúdo entre parênteses: "(Baunilha)", "(todos Os Sabores)"
+    """
+    Extração estruturada para canonical key.
+    Remove: acentos, parênteses, peso, embalagem, variantes (em qualquer posição).
+    Mantém: marca + tipo do produto (o que realmente identifica a família).
+    """
+    t = _deaccent(title.lower().strip())
+    # Remove conteúdo entre parênteses
     t = re.sub(r"\([^)]*\)", "", t)
-    # Remove multi-word variants do final (checar mais longos primeiro)
-    t_stripped = t.strip()
+    # Remove variantes multi-palavra antes de tokenizar
     for mv in sorted(_MULTI_WORD_VARIANTS, key=len, reverse=True):
-        if t_stripped.endswith(mv):
-            t_stripped = t_stripped[: -len(mv)]
-            break
-    t = t_stripped
-    # Remove single-word variant suffixes do final
-    words = t.split()
-    while words and words[-1].strip("- /|,") in _VARIANT_SUFFIXES:
-        words.pop()
-    t = " ".join(words)
-    # Limpa separadores e whitespace
-    t = re.sub(r"[\s\-–—]+", " ", t).strip().rstrip("- /|,").strip()
-    return t
+        t = t.replace(mv, " ")
+    # Remove peso/volume
+    t = _WEIGHT_RE.sub(" ", t)
+    # Tokeniza por separadores
+    tokens = re.split(r"[\s\-–—/|,;.]+", t)
+    keep = []
+    for tok in tokens:
+        tok = tok.strip()
+        if not tok:
+            continue
+        if tok in _PACKAGING_WORDS:
+            continue
+        if tok in _NOISE_WORDS:
+            continue
+        if _is_variant_token(tok):
+            continue
+        keep.append(tok)
+    return " ".join(keep).strip()
 
 
 def _compute_family_key(
     title: str,
     existing_keys: dict[str, str],
-    threshold: float = 0.82,
+    threshold: float = 0.80,
 ) -> str:
-    """Retorna family_key: match exato, fuzzy, ou nova key."""
+    """Retorna family_key: match exato → fuzzy → nova key."""
     norm = _normalize_title(title)
+    if not norm:
+        return _deaccent(title.lower().strip())[:60]
     if norm in existing_keys:
         return existing_keys[norm]
     for key_norm, fk in existing_keys.items():
