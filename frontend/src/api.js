@@ -45,6 +45,8 @@ export const createWAGroup = (id, participants) =>
 // Products
 export const getProducts = (groupId, params = {}) =>
   api.get(`/groups/${groupId}/products`, { params }).then(r => r.data)
+export const getAllProducts = (params = {}) =>
+  api.get('/products', { params }).then(r => r.data)
 export const deleteProduct = (id) => api.delete(`/products/${id}`)
 export const sendProduct = (id) => api.post(`/products/${id}/send`).then(r => r.data)
 export const getProductHistory = (id) => api.get(`/products/${id}/history`).then(r => r.data)

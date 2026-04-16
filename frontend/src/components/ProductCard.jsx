@@ -8,7 +8,7 @@ const SOURCE_LABEL = {
   amazon: { label: 'Amazon', color: 'bg-orange-900 text-orange-200' },
 }
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, showGroup = false }) {
   const qc = useQueryClient()
   const [showHistory, setShowHistory] = useState(false)
 
@@ -42,7 +42,14 @@ export default function ProductCard({ product }) {
         )}
         <div className="p-4 flex flex-col gap-2 flex-1 min-w-0">
           <div className="flex items-start gap-2">
-            <p className="text-sm text-gray-200 line-clamp-2 flex-1">{product.title}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-200 line-clamp-2">{product.title}</p>
+              {showGroup && product.group_name && (
+                <span className="inline-block text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded mt-1">
+                  {product.group_name}
+                </span>
+              )}
+            </div>
             <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${src.color}`}>
               {src.label}
             </span>

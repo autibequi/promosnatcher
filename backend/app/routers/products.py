@@ -12,6 +12,53 @@ from ..services.scanner import _format_message, _parse_group_ids
 router = APIRouter(tags=["products"])
 
 
+def _to_product_read(product: Product, group_name: str | None = None):
+    """Converte Product em ProductRead populando group_name."""
+    data = product.model_dump()
+    data["group_name"] = group_name
+    return data
+
+
+@router.get("/products", response_model=ProductsPage)
+def list_all_products(
+    group_id: int | None = Query(None),
+    source: str | None = Query(None),
+    sent: bool | None = Query(None),
+    search: str | None = Query(None),
+    limit: int = Query(30, le=100),
+    offset: int = Query(0),
+    session: Session = Depends(get_session),
+):
+    """Lista todos os produtos de todos os grupos com filtros opcionais."""
+    def _apply_filters(q):
+        if group_id is not None:
+            q = q.where(Product.group_id == group_id)
+        if source:
+            q = q.where(Product.source == source)
+        if sent is True:
+            q = q.where(Product.sent_at.is_not(None))
+        elif sent is False:
+            q = q.where(Product.sent_at.is_(None))
+        if search:
+            q = q.where(Product.title.ilike(f"%{search}%"))
+        return q
+
+    total = session.scalar(_apply_filters(select(func.count(Product.id)))) or 0
+    products = session.exec(
+        _apply_filters(select(Product)).order_by(Product.found_at.desc()).offset(offset).limit(limit)
+    ).all()
+
+    # Carrega nomes dos grupos em batch (evita N+1)
+    group_ids = {p.group_id for p in products}
+    groups_map = {
+        g.id: g.name
+        for g in session.exec(select(Group).where(Group.id.in_(group_ids))).all()
+    } if group_ids else {}
+
+    items = [_to_product_read(p, groups_map.get(p.group_id)) for p in products]
+    return ProductsPage(items=items, total=total, limit=limit, offset=offset)
+
+
 @router.get("/groups/{group_id}/products", response_model=ProductsPage)
 def list_products(
     group_id: int,
@@ -25,7 +72,6 @@ def list_products(
     if not group:
         raise HTTPException(404, "Group not found")
 
-    # Filtros base (sem paginação — usados tanto para count quanto para items)
     def _apply_filters(q):
         q = q.where(Product.group_id == group_id)
         if source:
@@ -37,10 +83,11 @@ def list_products(
         return q
 
     total = session.scalar(_apply_filters(select(func.count(Product.id)))) or 0
-    items = session.exec(
+    products = session.exec(
         _apply_filters(select(Product)).order_by(Product.found_at.desc()).offset(offset).limit(limit)
     ).all()
 
+    items = [_to_product_read(p, group.name) for p in products]
     return ProductsPage(items=items, total=total, limit=limit, offset=offset)
 
 

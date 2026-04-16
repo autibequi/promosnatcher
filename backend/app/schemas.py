@@ -53,6 +53,7 @@ class GroupRead(BaseModel):
 class ProductRead(BaseModel):
     id: int
     group_id: int
+    group_name: Optional[str] = None
     title: str
     price: float
     url: str
