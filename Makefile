@@ -13,7 +13,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup start start-tunnel pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
+.PHONY: help setup start start-tunnel update pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network
 
 help: ## Mostra este help
@@ -62,6 +62,12 @@ start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env
 	COMPOSE_PROFILES=tunnel $(COMPOSE) up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
+
+update: ## Atualiza a aplicação: git pull + rebuild só backend e frontend
+	git pull
+	$(COMPOSE) up -d --build --no-deps backend frontend
+	@echo ""
+	@echo "Atualizado. Evolution/postgres/redis continuam no ar sem interrupção."
 
 pi-setup: ## Raspberry Pi: instala Docker, habilita no boot e configura swap 2GB
 	@echo "=== Instalando Docker ==="

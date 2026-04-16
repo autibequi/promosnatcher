@@ -28,7 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Cache pip entre builds — só reinstala se requirements.txt mudar
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # Instala Chromium no build (não no runtime — evita download na inicialização)
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
