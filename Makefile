@@ -63,9 +63,9 @@ start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
 
-update: ## Atualiza a aplicação: git pull + rebuild só backend e frontend
+update: ## Atualiza a aplicação: git pull + rebuild backend, redirect e frontend
 	git pull
-	$(COMPOSE) up -d --build --no-deps backend frontend
+	$(COMPOSE) up -d --build --no-deps backend redirect frontend
 	@echo ""
 	@echo "Atualizado. Evolution/postgres/redis continuam no ar sem interrupção."
 
