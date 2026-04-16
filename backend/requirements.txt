@@ -11,3 +11,4 @@ crawl4ai
 python-jose[cryptography]
 pytest
 pytest-asyncio
+python-telegram-bot==21.6

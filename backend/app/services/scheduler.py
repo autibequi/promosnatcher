@@ -29,6 +29,15 @@ def _run_scan():
         _running.clear()
 
 
+def _run_tg_poll():
+    """Roda polling de atualizações Telegram."""
+    try:
+        from .telegram_poller import tg_poll_updates
+        asyncio.run(tg_poll_updates())
+    except Exception as e:
+        logger.error(f"Erro no TG polling: {e}")
+
+
 def start(interval_minutes: int = 30):
     global _interval_minutes
     _interval_minutes = interval_minutes
@@ -38,6 +47,13 @@ def start(interval_minutes: int = 30):
         _run_scan,
         trigger=_make_trigger(interval_minutes),
         id="scan_all",
+        replace_existing=True,
+    )
+    # Job de polling Telegram a cada 30s
+    _scheduler.add_job(
+        _run_tg_poll,
+        trigger=IntervalTrigger(seconds=30, timezone=_UTC),
+        id="tg_poll",
         replace_existing=True,
     )
     _scheduler.start()
@@ -53,6 +69,12 @@ def restart(interval_minutes: int):
             _run_scan,
             trigger=_make_trigger(interval_minutes),
             id="scan_all",
+            replace_existing=True,
+        )
+        _scheduler.add_job(
+            _run_tg_poll,
+            trigger=IntervalTrigger(seconds=30, timezone=_UTC),
+            id="tg_poll",
             replace_existing=True,
         )
     else:

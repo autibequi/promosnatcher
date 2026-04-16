@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getConfig, updateConfig, testWA,
-         getWAStatus, startWASession, logoutWASession } from '../api'
+import { getConfig, updateConfig, testWA, testTG,
+         getWAStatus, startWASession, logoutWASession, getTGStatus } from '../api'
 
 export default function Settings() {
   const qc = useQueryClient()
@@ -22,6 +22,9 @@ export default function Settings() {
     wa_group_prefix: 'Snatcher',
     alert_phone: '',
     use_short_links: true,
+    tg_enabled: false,
+    tg_bot_token: '',
+    tg_group_prefix: 'Snatcher',
   })
   useEffect(() => {
     if (config) {
@@ -40,17 +43,28 @@ export default function Settings() {
         wa_group_prefix: config.wa_group_prefix ?? 'Snatcher',
         alert_phone: config.alert_phone || '',
         use_short_links: config.use_short_links ?? true,
+        tg_enabled: config.tg_enabled ?? false,
+        tg_bot_token: '',
+        tg_group_prefix: config.tg_group_prefix ?? 'Snatcher',
       })
     }
   }, [config])
 
   const save = useMutation({ mutationFn: updateConfig })
   const test = useMutation({ mutationFn: testWA })
+  const testTgMutation = useMutation({ mutationFn: testTG })
 
   // WAHA status — poll a cada 5s se não WORKING
   const { data: waStatus } = useQuery({
     queryKey: ['waStatus'],
     queryFn: getWAStatus,
+    refetchInterval: 5000,
+  })
+
+  // Telegram status
+  const { data: tgStatus } = useQuery({
+    queryKey: ['tgStatus'],
+    queryFn: getTGStatus,
     refetchInterval: 5000,
   })
 
@@ -84,6 +98,8 @@ export default function Settings() {
       ml_affiliate_tool_id: form.ml_affiliate_tool_id || undefined,
       wa_group_prefix: form.wa_group_prefix || null,
       alert_phone: form.alert_phone || null,
+      tg_bot_token: form.tg_bot_token || undefined,
+      tg_group_prefix: form.tg_group_prefix || null,
     })
   }
 
@@ -160,6 +176,94 @@ export default function Settings() {
                 </a>
               </div>
             </>
+          )}
+        </div>
+
+        {/* ── Telegram ─────────────────────────────────────────────── */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">🤖 Telegram</h2>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                tgStatus?.configured && tgStatus?.enabled
+                  ? 'bg-green-900 text-green-300'
+                  : 'bg-gray-800 text-gray-400'
+              }`}>
+                {tgStatus?.configured ? (tgStatus?.enabled ? '✓ Ativo' : '✗ Desabilitado') : 'Não configurado'}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className={label}>Bot Token</label>
+            <input
+              className={field}
+              type="password"
+              value={form.tg_bot_token}
+              onChange={set('tg_bot_token')}
+              placeholder="123456:ABC..."
+            />
+            <p className="text-xs text-gray-600 mt-1">Crie um bot em @BotFather no Telegram e copie o token aqui.</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium text-gray-300">Habilitar Telegram</label>
+              <p className="text-xs text-gray-600 mt-0.5">Ativa envio de mensagens para grupos Telegram</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, tg_enabled: !f.tg_enabled }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                form.tg_enabled ? 'bg-green-600' : 'bg-gray-700'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                form.tg_enabled ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          {form.tg_enabled && (
+            <div>
+              <label className={label}>Prefixo dos grupos</label>
+              <input
+                className={field}
+                value={form.tg_group_prefix}
+                onChange={set('tg_group_prefix')}
+                placeholder="Snatcher"
+              />
+              <p className="text-xs text-gray-600 mt-1">Grupos Telegram serão renomeados com este prefixo.</p>
+            </div>
+          )}
+
+          {form.tg_bot_token && (
+            <button
+              type="button"
+              onClick={() => testTgMutation.mutate()}
+              disabled={testTgMutation.isPending}
+              className="w-full bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm py-2 rounded-lg transition-colors"
+            >
+              {testTgMutation.isPending ? '⏳ Testando...' : '🧪 Testar token'}
+            </button>
+          )}
+
+          {testTgMutation.isSuccess && (
+            <div className="bg-green-900 bg-opacity-30 border border-green-800 rounded-lg p-3">
+              <p className="text-xs text-green-300">✓ Token válido!</p>
+              <p className="text-xs text-green-400 mt-1">Bot: @{testTgMutation.data?.me?.username}</p>
+            </div>
+          )}
+          {testTgMutation.isError && (
+            <p className="text-xs text-red-400">✗ Token inválido: {testTgMutation.error?.response?.data?.detail}</p>
+          )}
+
+          {form.tg_enabled && tgStatus?.configured && (
+            <div className="pt-2 border-t border-gray-800">
+              <a href="/admin/telegram" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                🤖 Gerenciar grupos Telegram →
+              </a>
+            </div>
           )}
         </div>
 

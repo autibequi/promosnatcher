@@ -66,6 +66,18 @@ export const getWAGroupInvite = (groupId) => api.get(`/config/wa/groups/${encode
 export const updateWAGroup = (groupId, data) => api.put(`/config/wa/groups/${encodeURIComponent(groupId)}`, data).then(r => r.data)
 export const leaveWAGroup = (groupId) => api.delete(`/config/wa/groups/${encodeURIComponent(groupId)}`).then(r => r.data)
 
+// Telegram
+export const getTGStatus = () => api.get('/config/tg/status').then(r => r.data)
+export const testTG = () => api.post('/config/tg/test').then(r => r.data)
+export const getTGChats = (linked) => api.get('/config/tg/chats', { params: { linked } }).then(r => r.data)
+export const resolveTGChat = (handle) => api.post('/config/tg/chats/resolve', { handle }).then(r => r.data)
+export const linkTGChat = (chatId, groupId) => api.post(`/config/tg/chats/${encodeURIComponent(chatId)}/link`, { group_id: groupId }).then(r => r.data)
+export const unlinkTGChat = (chatId) => api.delete(`/config/tg/chats/${encodeURIComponent(chatId)}/link`).then(r => r.data)
+export const setTGTitle = (chatId, title) => api.put(`/config/tg/chats/${encodeURIComponent(chatId)}/title`, { title }).then(r => r.data)
+export const getTGInvite = (chatId) => api.get(`/config/tg/chats/${encodeURIComponent(chatId)}/invite`).then(r => r.data)
+export const leaveTGChat = (chatId) => api.delete(`/config/tg/chats/${encodeURIComponent(chatId)}`).then(r => r.data)
+export const getTGDeeplink = () => api.get('/config/tg/deeplink').then(r => r.data)
+
 // Analytics
 export const getAnalyticsSummary = (days = 30) =>
   api.get('/analytics/summary', { params: { days } }).then(r => r.data)

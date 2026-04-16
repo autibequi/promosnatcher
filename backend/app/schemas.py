@@ -10,6 +10,7 @@ class GroupCreate(BaseModel):
     min_val: float
     max_val: float
     whatsapp_group_id: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
     message_template: Optional[str] = None
     active: bool = True
     scan_interval: int = 30
@@ -22,6 +23,7 @@ class GroupUpdate(BaseModel):
     min_val: Optional[float] = None
     max_val: Optional[float] = None
     whatsapp_group_id: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
     message_template: Optional[str] = None
     active: Optional[bool] = None
     scan_interval: Optional[int] = None
@@ -36,6 +38,8 @@ class GroupRead(BaseModel):
     max_val: float
     whatsapp_group_id: Optional[str]
     wa_group_status: Optional[str]
+    telegram_chat_id: Optional[str]
+    tg_group_status: Optional[str]
     message_template: Optional[str]
     active: bool
     scan_interval: int
@@ -95,6 +99,10 @@ class AppConfigRead(BaseModel):
     wa_group_prefix: Optional[str]
     alert_phone: Optional[str]
     use_short_links: bool
+    # Telegram
+    tg_enabled: bool
+    tg_bot_username: Optional[str]
+    tg_group_prefix: Optional[str]
 
     class Config:
         from_attributes = True
@@ -115,6 +123,10 @@ class AppConfigUpdate(BaseModel):
     wa_group_prefix: Optional[str] = None
     alert_phone: Optional[str] = None
     use_short_links: Optional[bool] = None
+    # Telegram
+    tg_enabled: Optional[bool] = None
+    tg_bot_token: Optional[str] = None
+    tg_group_prefix: Optional[str] = None
 
 
 class PriceHistoryRead(BaseModel):

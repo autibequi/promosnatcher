@@ -1,6 +1,6 @@
 # Promo Snatcher — CLAUDE.md
 
-Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos WhatsApp.
+Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos **WhatsApp + Telegram**.
 
 ## Stack
 
@@ -9,6 +9,7 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 | Backend | FastAPI + SQLModel + SQLite + APScheduler |
 | Scrapers | httpx + BeautifulSoup (ML), crawl4ai/Chromium (Amazon) |
 | WhatsApp | WAHA (self-hosted, NOWEB engine) |
+| Telegram | python-telegram-bot 21.6 (async Bot API) |
 | Frontend | React 18 + Vite + TailwindCSS + Recharts |
 | Proxy | nginx (frontend + proxy /api/ → backend) |
 | Infra | Podman / Docker Compose + Cloudflare Tunnel |
@@ -31,18 +32,20 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos W
 │   │   │   ├── groups.py      # CRUD + scan + create-wa-group
 │   │   │   ├── products.py    # list, delete, send, GET /history
 │   │   │   ├── scan.py        # jobs, status
-│   │   │   └── config.py      # AppConfig + /wa/qr + /wa/status + /wa/groups
+│   │   │   ├── config.py      # AppConfig + /wa/qr + /wa/status + /wa/groups
+│   │   │   └── telegram.py    # /config/tg/* — discovery, linking, status
 │   │   └── services/
-│   │       ├── scanner.py     # scan_group(): ML + Amazon + dedup + WA + price drop
+│   │       ├── scanner.py     # scan_group(): ML + Amazon + multi-provider fanout + dedup
 │   │       ├── mercadolivre.py # httpx + BS4 + ML OAuth fallback
 │   │       ├── amazon.py      # crawl4ai AsyncWebCrawler (sem wait_for)
 │   │       ├── auth.py        # JWT create/verify, require_auth dependency
+│   │       ├── telegram_poller.py  # tg_poll_updates() — discovery via polling
 │   │       └── whatsapp/
 │   │           ├── base.py    # WhatsAppAdapter ABC
 │   │           ├── waha.py    # WAHAAdapter — provider principal
 │   │           ├── evolution.py  # EvolutionAdapter (legado)
-│   │           ├── zapi.py    # ZApiAdapter (legado)
-│   │           └── factory.py
+│   │           ├── telegram.py # TelegramAdapter — telegram Bot API
+│   │           └── factory.py  # get_adapter() + get_tg_adapter()
 │   ├── data/                  # SQLite DB (gitignored, .gitkeep presente)
 │   ├── requirements.txt
 │   └── Dockerfile
@@ -102,6 +105,10 @@ WAHA_API_KEY=promohunter123       # obrigatório — WAHA exige key
 WAHA_DASHBOARD_USERNAME=admin
 WAHA_DASHBOARD_PASSWORD=promohunter123
 
+# Telegram (opcional — tudo configurável pelo painel)
+TG_BOT_TOKEN=                     # 123456:ABC...
+TG_BOT_USERNAME=                  # SnatcherBot (auto-preenchido)
+
 # Cloudflare Tunnel
 CLOUDFLARE_TOKEN=eyJ...
 ```
@@ -152,7 +159,7 @@ CLOUDFLARE_TOKEN=eyJ...
 - **Prefixo**: grupos criados como `{wa_group_prefix} - {nome}`, lista filtra pelo prefixo
 - **Volume corrompido**: trocar entre NOWEB/WEBJS corrompe o volume — apagar e recriar
 
-## Scanner — fluxo principal
+## Scanner — fluxo multi-provider
 
 ```
 scan_group(group_id)
@@ -160,12 +167,51 @@ scan_group(group_id)
   ├── ml_results = mercadolivre.search()    # API oficial ou scraping HTML
   ├── amz_results = amazon.search()         # crawl4ai + Chromium (sem wait_for)
   ├── existing = {url: Product} para dedup
-  ├── wa_adapter.check_group() → wa_group_status (ok/removed)
+  ├── _collect_adapters(config, group) → [(provider, adapter, chat_ids), ...]
+  │   ├── whatsapp (se wa configurado + group.whatsapp_group_id)
+  │   └── telegram (se tg configurado + group.telegram_chat_id)
+  ├── health check pra cada provider → atualiza wa_group_status / tg_group_status
   └── para cada result:
-      ├── novo: insert + PriceHistory + envio WA (se dentro da send window)
+      ├── novo: insert + PriceHistory + fanout multi-provider com dedup
+      │         (WA + TG, com registro em SentMessage)
       └── existente com queda ≥10%:
               → PriceHistory + re-envio com badge 🚨 + update price
+              → drops sempre re-enviam (is_drop=True ignora dedup)
 ```
+
+## Dedup multi-provider — SentMessage
+
+**Modelo**: `SentMessage(product_id, provider, chat_id, is_drop)`
+
+**Regra**:
+- Se `is_drop=False` e já existe envio anterior para `(provider, chat_id)` → **skip** (dedup)
+- Se `is_drop=True` → sempre envia e registra (drops sempre re-enviam)
+- Cada provider/chat_id tem histórico separado — TG não é afetado por dedup WA
+
+## Telegram Integration
+
+### Estrutura
+- **Models**: `AppConfig` com campos `tg_enabled`, `tg_bot_token`, `tg_bot_username`, `tg_group_prefix`, `tg_last_update_id`
+- **Models**: `Group` com campos `telegram_chat_id`, `tg_group_status`
+- **Models**: `TelegramChat` para discovery cache (descoberto via polling)
+- **Models**: `SentMessage` para dedup robusto (product_id, provider, chat_id, is_drop)
+- **Router**: `/api/config/tg/*` — status, test, chats, linking, discovery, deeplink
+- **Adapter**: `TelegramAdapter(WhatsAppAdapter)` — send_text, send_image, check_group, etc
+- **Poller**: `tg_poll_updates()` executado a cada 30s via APScheduler
+- **Factory**: `get_tg_adapter(config)` — cria adapter se token configurado
+
+### Fluxo discovery
+1. **Polling**: APScheduler executa `tg_poll_updates()` a cada 30s
+2. **getUpdates**: Bot recebe eventos de grupos/canais (my_chat_member, message, channel_post)
+3. **Cache**: TelegramChat é populado com metadados (tipo, título, is_admin, etc)
+4. **UI**: Lista de chats não-vinculados → frontend permite vincular a um Group
+5. **Linking**: Deep-link `tg://resolve?domain={bot}?startgroup=true` pra adicionar bot novo
+
+### Detalhe: HTML parser para Telegram
+- Template WA usa markdown: `*bold*`, `_italic_`
+- Telegram usa parse_mode=HTML: `<b>bold</b>`, `<i>italic</i>`
+- Função `_to_html()` converte WA markdown → HTML (escapa <>&, depois reconverte *...*)
+- Resultado: mesma template, diferente parse mode por provider
 
 ## Scrapers
 

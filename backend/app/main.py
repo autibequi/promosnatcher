@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import create_db_and_tables, migrate_db
-from .routers import groups, products, scan, config, auth as auth_router, redirect, analytics, public
+from .routers import groups, products, scan, config, auth as auth_router, redirect, analytics, public, telegram
 from .services.auth import require_auth
 from .services import scheduler
 from .models import AppConfig
@@ -83,6 +83,7 @@ app.add_api_route("/api/config/wa/qr", wa_qr, methods=["GET"],
                   response_class=HTMLResponse, tags=["config"])
 
 app.include_router(config.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(telegram.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(analytics.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Rotas públicas (sem auth)

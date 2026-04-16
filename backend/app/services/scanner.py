@@ -5,10 +5,10 @@ from datetime import datetime
 import pytz
 from sqlmodel import Session, select
 
-from ..models import Group, Product, ScanJob, AppConfig, PriceHistory
+from ..models import Group, Product, ScanJob, AppConfig, PriceHistory, SentMessage
 from ..database import engine
 from . import mercadolivre, amazon
-from .whatsapp.factory import get_adapter
+from .whatsapp.factory import get_adapter, get_tg_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,48 @@ def _format_message(
     return tmpl.format_map(ctx)
 
 
+def _collect_adapters(config: "AppConfig | None", group: "Group", session: "Session") -> list[tuple[str, object, list[str]]]:
+    """Coleta adapters habilitados (WA + TG) e seus respectivos chat IDs."""
+    result = []
+
+    # WhatsApp
+    wa_ids = _parse_group_ids(group.whatsapp_group_id)
+    if wa_ids and config:
+        wa = get_adapter(
+            config.wa_provider,
+            config.wa_base_url or "",
+            config.wa_api_key or "",
+            config.wa_instance or "",
+        )
+        if wa:
+            result.append(("whatsapp", wa, wa_ids))
+
+    # Telegram
+    tg_ids = _parse_group_ids(group.telegram_chat_id)
+    if tg_ids and config:
+        tg = get_tg_adapter(config)
+        if tg:
+            result.append(("telegram", tg, tg_ids))
+
+    return result
+
+
+def _already_sent(session: "Session", product_id: int, provider: str, chat_id: str, is_drop: bool) -> bool:
+    """Verifica se mensagem já foi enviada (dedup)."""
+    if is_drop:
+        return False  # drops sempre enviam
+
+    existing = session.exec(
+        select(SentMessage).where(
+            SentMessage.product_id == product_id,
+            SentMessage.provider == provider,
+            SentMessage.chat_id == chat_id,
+            SentMessage.is_drop == False,
+        )
+    ).first()
+    return existing is not None
+
+
 async def _maybe_send_failure_alert(
     group: "Group", config: "AppConfig | None", error_msg: str, session: "Session"
 ) -> None:
@@ -144,28 +186,35 @@ async def scan_group(group_id: int):
                 ).all()
             }
 
-            wa_adapter = None
-            wa_group_ids = _parse_group_ids(group.whatsapp_group_id)
-            if config and wa_group_ids:
-                wa_adapter = get_adapter(
-                    config.wa_provider,
-                    config.wa_base_url or "",
-                    config.wa_api_key or "",
-                    config.wa_instance or "",
-                )
-                # Health check no primeiro grupo
-                if wa_adapter:
-                    status = await wa_adapter.check_group(wa_group_ids[0])
-                    if status is True:
-                        if group.wa_group_status != "ok":
-                            group.wa_group_status = "ok"
+            # Coleta adapters habilitados (WA + TG)
+            adapters = _collect_adapters(config, group, session)
+
+            # Health check para cada provider
+            if adapters:
+                # WA health check
+                for provider, adapter, chat_ids in adapters:
+                    if provider == "whatsapp" and chat_ids:
+                        status = await adapter.check_group(chat_ids[0])
+                        if status is True:
+                            if group.wa_group_status != "ok":
+                                group.wa_group_status = "ok"
+                                session.add(group)
+                        elif status is False:
+                            logger.warning("scan.wa_group_removed", extra={"group_id": group_id})
+                            group.wa_group_status = "removed"
                             session.add(group)
-                    elif status is False:
-                        logger.warning("scan.wa_group_removed", extra={"group_id": group_id})
-                        group.wa_group_status = "removed"
-                        session.add(group)
-                        wa_adapter = None  # não envia mais até o grupo ser revalidado
-                    # status None = inconclusivo, mantém adapter e não altera status
+                            adapters = [(p, a, c) for p, a, c in adapters if p != "whatsapp"]
+                    elif provider == "telegram" and chat_ids:
+                        status = await adapter.check_group(chat_ids[0])
+                        if status is True:
+                            if group.tg_group_status != "ok":
+                                group.tg_group_status = "ok"
+                                session.add(group)
+                        elif status is False:
+                            logger.warning("scan.tg_group_removed", extra={"group_id": group_id})
+                            group.tg_group_status = "removed"
+                            session.add(group)
+                            adapters = [(p, a, c) for p, a, c in adapters if p != "telegram"]
 
             new_count = 0
             for item in all_results:
@@ -185,20 +234,33 @@ async def scan_group(group_id: int):
                     session.flush()  # obtém product.id + short_id
                     session.add(PriceHistory(product_id=product.id, price=item["price"]))
 
-                    # Enviar via WA com short link
-                    if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
+                    # Enviar multi-provider (WA + TG) com dedup
+                    if adapters and _within_send_window(config.send_start_hour, config.send_end_hour):
                         item_with_short = {**item, "short_id": product.short_id}
                         msg = _format_message(item_with_short, group.name, group.message_template, config=config)
                         img = item.get("image_url")
-                        for gid in wa_group_ids:
-                            if img:
-                                ok = await wa_adapter.send_image(gid, img, msg)
-                                if not ok:
-                                    ok = await wa_adapter.send_text(gid, msg)
-                            else:
-                                ok = await wa_adapter.send_text(gid, msg)
-                            if ok:
-                                product.sent_at = datetime.utcnow()
+                        any_sent = False
+                        for provider, adapter, chat_ids in adapters:
+                            for cid in chat_ids:
+                                if _already_sent(session, product.id, provider, cid, False):
+                                    continue
+                                ok = False
+                                if img:
+                                    ok = await adapter.send_image(cid, img, msg)
+                                    if not ok:
+                                        ok = await adapter.send_text(cid, msg)
+                                else:
+                                    ok = await adapter.send_text(cid, msg)
+                                if ok:
+                                    session.add(SentMessage(
+                                        product_id=product.id,
+                                        provider=provider,
+                                        chat_id=cid,
+                                        is_drop=False,
+                                    ))
+                                    any_sent = True
+                        if any_sent:
+                            product.sent_at = datetime.utcnow()
 
                     existing[item["url"]] = product
                     new_count += 1
@@ -217,22 +279,33 @@ async def scan_group(group_id: int):
                             logger.info("scan.price_drop", extra={
                                 "group_id": group_id, "drop_pct": f"{drop_pct:.0%}", "url": item["url"]
                             })
-                            stored.sent_at = None
-                            if wa_adapter and _within_send_window(config.send_start_hour, config.send_end_hour):
+                            # Envia drop para todos os providers (sempre re-envia)
+                            if adapters and _within_send_window(config.send_start_hour, config.send_end_hour):
                                 item_with_short = {**item, "short_id": stored.short_id}
                                 msg = _format_message(
                                     item_with_short, group.name, group.message_template, is_drop=True, config=config
                                 )
                                 img = item.get("image_url")
-                                for gid in wa_group_ids:
-                                    if img:
-                                        ok = await wa_adapter.send_image(gid, img, msg)
-                                        if not ok:
-                                            ok = await wa_adapter.send_text(gid, msg)
-                                    else:
-                                        ok = await wa_adapter.send_text(gid, msg)
-                                    if ok:
-                                        stored.sent_at = datetime.utcnow()
+                                any_sent = False
+                                for provider, adapter, chat_ids in adapters:
+                                    for cid in chat_ids:
+                                        ok = False
+                                        if img:
+                                            ok = await adapter.send_image(cid, img, msg)
+                                            if not ok:
+                                                ok = await adapter.send_text(cid, msg)
+                                        else:
+                                            ok = await adapter.send_text(cid, msg)
+                                        if ok:
+                                            session.add(SentMessage(
+                                                product_id=stored.id,
+                                                provider=provider,
+                                                chat_id=cid,
+                                                is_drop=True,
+                                            ))
+                                            any_sent = True
+                                if any_sent:
+                                    stored.sent_at = datetime.utcnow()
                             new_count += 1
 
                         # atualiza preço em qualquer mudança

@@ -32,15 +32,32 @@ def get_config(session: Session = Depends(get_session)):
 
 
 @router.put("", response_model=AppConfigRead)
-def update_config(data: AppConfigUpdate, session: Session = Depends(get_session)):
+async def update_config(data: AppConfigUpdate, session: Session = Depends(get_session)):
     config = _get_or_create_config(session)
+
+    # Handle Telegram token update — valida e popula username
+    tg_bot_username = None
+    if data.tg_bot_token:
+        from ..services.whatsapp.telegram import TelegramAdapter
+        adapter = TelegramAdapter(data.tg_bot_token)
+        me = await adapter.get_me()
+        if not me:
+            raise HTTPException(status_code=400, detail="Token Telegram inválido")
+        tg_bot_username = me.get("username")
+
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(config, field, value)
+
+    if tg_bot_username:
+        config.tg_bot_username = tg_bot_username
+
     session.add(config)
     session.commit()
     session.refresh(config)
+
     if data.global_interval:
         scheduler.restart(data.global_interval)
+
     return config
 
 

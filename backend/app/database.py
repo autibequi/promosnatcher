@@ -31,6 +31,14 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN alert_phone TEXT',
             'ALTER TABLE product ADD COLUMN short_id TEXT',
             'ALTER TABLE appconfig ADD COLUMN use_short_links BOOLEAN DEFAULT 1',
+            # Telegram
+            'ALTER TABLE "group" ADD COLUMN telegram_chat_id TEXT',
+            'ALTER TABLE "group" ADD COLUMN tg_group_status TEXT',
+            'ALTER TABLE appconfig ADD COLUMN tg_enabled BOOLEAN DEFAULT 0',
+            'ALTER TABLE appconfig ADD COLUMN tg_bot_token TEXT',
+            'ALTER TABLE appconfig ADD COLUMN tg_bot_username TEXT',
+            "ALTER TABLE appconfig ADD COLUMN tg_group_prefix TEXT DEFAULT 'Snatcher'",
+            'ALTER TABLE appconfig ADD COLUMN tg_last_update_id INTEGER',
         ]:
             try:
                 conn.execute(text(stmt))
