@@ -143,3 +143,186 @@ class PriceHistoryRead(BaseModel):
 
 class CreateWAGroupRequest(BaseModel):
     participants: list[str] = []
+
+
+# ===========================================================================
+# v2 Pipeline Schemas
+# ===========================================================================
+
+# --- SearchTerm ---
+
+class SearchTermCreate(BaseModel):
+    query: str
+    min_val: float = 0
+    max_val: float = 9999
+    sources: str = "all"
+    crawl_interval: int = 30
+
+class SearchTermUpdate(BaseModel):
+    query: Optional[str] = None
+    min_val: Optional[float] = None
+    max_val: Optional[float] = None
+    sources: Optional[str] = None
+    active: Optional[bool] = None
+    crawl_interval: Optional[int] = None
+
+class SearchTermRead(BaseModel):
+    id: int
+    query: str
+    min_val: float
+    max_val: float
+    sources: str
+    active: bool
+    crawl_interval: int
+    last_crawled_at: Optional[datetime]
+    result_count: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+# --- CrawlResult ---
+
+class CrawlResultRead(BaseModel):
+    id: int
+    search_term_id: int
+    title: str
+    price: float
+    url: str
+    image_url: Optional[str]
+    source: str
+    crawled_at: datetime
+    catalog_variant_id: Optional[int]
+    class Config:
+        from_attributes = True
+
+class CrawlResultsPage(BaseModel):
+    items: List[CrawlResultRead]
+    total: int
+    limit: int
+    offset: int
+
+# --- CatalogProduct ---
+
+class CatalogVariantRead(BaseModel):
+    id: int
+    catalog_product_id: int
+    title: str
+    variant_label: Optional[str]
+    price: float
+    url: str
+    image_url: Optional[str]
+    source: str
+    first_seen_at: datetime
+    last_seen_at: datetime
+    class Config:
+        from_attributes = True
+
+class CatalogProductRead(BaseModel):
+    id: int
+    canonical_name: str
+    brand: Optional[str]
+    weight: Optional[str]
+    image_url: Optional[str]
+    lowest_price: Optional[float]
+    lowest_price_url: Optional[str]
+    lowest_price_source: Optional[str]
+    tags: str  # JSON string
+    variant_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+class CatalogProductDetail(CatalogProductRead):
+    variants: List[CatalogVariantRead] = []
+
+class CatalogProductsPage(BaseModel):
+    items: List[CatalogProductRead]
+    total: int
+    limit: int
+    offset: int
+
+class CatalogProductUpdate(BaseModel):
+    brand: Optional[str] = None
+    tags: Optional[str] = None  # JSON string
+
+# --- GroupingKeyword ---
+
+class GroupingKeywordCreate(BaseModel):
+    keyword: str
+    tag: str
+
+class GroupingKeywordRead(BaseModel):
+    id: int
+    keyword: str
+    tag: str
+    active: bool
+    class Config:
+        from_attributes = True
+
+# --- Channel ---
+
+class ChannelCreate(BaseModel):
+    name: str
+    description: str = ""
+    message_template: Optional[str] = None
+    send_start_hour: int = 8
+    send_end_hour: int = 22
+
+class ChannelUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    message_template: Optional[str] = None
+    send_start_hour: Optional[int] = None
+    send_end_hour: Optional[int] = None
+    active: Optional[bool] = None
+
+class ChannelTargetRead(BaseModel):
+    id: int
+    channel_id: int
+    provider: str
+    chat_id: str
+    status: str
+    class Config:
+        from_attributes = True
+
+class ChannelTargetCreate(BaseModel):
+    provider: str
+    chat_id: str
+
+class ChannelRuleCreate(BaseModel):
+    match_type: str
+    match_value: Optional[str] = None
+    max_price: Optional[float] = None
+    notify_new: bool = True
+    notify_drop: bool = False
+    notify_lowest: bool = False
+    drop_threshold: float = 0.10
+
+class ChannelRuleRead(BaseModel):
+    id: int
+    channel_id: int
+    match_type: str
+    match_value: Optional[str]
+    max_price: Optional[float]
+    notify_new: bool
+    notify_drop: bool
+    notify_lowest: bool
+    drop_threshold: float
+    active: bool
+    class Config:
+        from_attributes = True
+
+class ChannelRead(BaseModel):
+    id: int
+    name: str
+    description: str
+    message_template: Optional[str]
+    send_start_hour: int
+    send_end_hour: int
+    active: bool
+    created_at: datetime
+    targets: List[ChannelTargetRead] = []
+    rules: List[ChannelRuleRead] = []
+    class Config:
+        from_attributes = True
