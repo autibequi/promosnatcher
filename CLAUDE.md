@@ -12,7 +12,7 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos *
 | Telegram | python-telegram-bot 21.6 (async Bot API) |
 | Frontend | React 18 + Vite + TailwindCSS + Recharts |
 | Proxy | nginx (frontend + proxy /api/ → backend) |
-| Infra | Podman / Docker Compose + Cloudflare Tunnel |
+| Infra | Docker / Podman Compose + Cloudflare Tunnel |
 | Auth | JWT via python-jose, senha no .env |
 
 ## Estrutura
@@ -74,15 +74,17 @@ Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos *
 ## Comandos rápidos
 
 ```bash
-make up              # build + sobe em background
+make setup           # cria .env + gera AUTH_SECRET automático
+make start           # build + sobe (sem Cloudflare Tunnel)
+make start-tunnel    # build + sobe + Cloudflare Tunnel
+make pi-setup        # Raspberry Pi: instala Docker + configura swap 2GB
+make up              # sobe em background (sem rebuild)
 make down            # para tudo
-make restart         # down + up
 make logs            # todos os logs (follow)
 make test            # testa health + endpoints via curl
 make status          # containers + próximo scan
 make scan            # dispara scan manual em todos os grupos
 make shell           # bash no backend
-make fix-network     # reaplica aliases Podman (rodar se 502 aparecer)
 make clean           # remove containers + imagens + volume (pede confirmação)
 ```
 
@@ -91,36 +93,56 @@ make clean           # remove containers + imagens + volume (pede confirmação)
 ```env
 # Auth JWT
 AUTH_USERNAME=admin
-AUTH_PASSWORD=senha-aqui          # vazio = desabilita auth
-AUTH_SECRET=string-aleatoria-longa
+AUTH_PASSWORD=senha-aqui          # obrigatório
+AUTH_SECRET=                      # gerado automaticamente pelo make setup
 AUTH_TOKEN_HOURS=72
+
+# WhatsApp (Evolution API)
+EVOLUTION_API_KEY=senha-forte     # obrigatório — chave da API interna
+EVOLUTION_INSTANCE=default
+EVOLUTION_DB_PASS=evolution       # senha Postgres interno
+
+# URL pública (usada nos short links das mensagens)
+PUBLIC_URL=https://snatcher.autibequi.com
+
+# Infraestrutura
+FRONTEND_PORT=6060                # porta local do frontend
+
+# Cloudflare Tunnel (opcional — só para acesso externo)
+CLOUDFLARE_TOKEN=                 # usar make start-tunnel se definido
 
 # Scan
 SCAN_INTERVAL=30                  # minutos
 TZ_NAME=America/Sao_Paulo
 
-# WAHA (WhatsApp)
-WAHA_SESSION=default
-WAHA_API_KEY=promohunter123       # obrigatório — WAHA exige key
-WAHA_DASHBOARD_USERNAME=admin
-WAHA_DASHBOARD_PASSWORD=promohunter123
-
 # Telegram (opcional — tudo configurável pelo painel)
 TG_BOT_TOKEN=                     # 123456:ABC...
-TG_BOT_USERNAME=                  # SnatcherBot (auto-preenchido)
-
-# Cloudflare Tunnel
-CLOUDFLARE_TOKEN=eyJ...
 ```
 
 ## Portas
 
 | Serviço | Porta local | Externo |
 |---------|-------------|---------|
+| Frontend nginx | 6060 (configurável) | `snatcher.autibequi.com` |
 | Backend API | 8000 | via nginx |
-| Frontend nginx | 6060 | `snatcher.autibequi.com` |
-| WAHA | 3200 | interno |
-| WAHA Dashboard | 3200 | `localhost:3200` |
+| Evolution API | 3200 (localhost only) | interno |
+
+## Raspberry Pi
+
+O compose está otimizado para ARM64 com:
+- `platform: linux/arm64` nas imagens de terceiros
+- `shm_size: 128mb` no backend (necessário para Chromium não crashar)
+- Limites de memória por container (~1.85 GB total)
+- Postgres tunado para baixo consumo (`shared_buffers=32MB`, `max_connections=20`)
+- `start_period: 60s` nos healthchecks (Pi demora mais para subir)
+- `restart: unless-stopped` em todos os serviços + `systemctl enable docker` = sobrevive a reboots
+
+Fluxo de setup no Pi:
+```bash
+sudo make pi-setup   # instala Docker + swap 2GB
+newgrp docker
+make setup && nano .env && make start
+```
 
 ## Modelo de dados
 

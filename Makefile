@@ -13,7 +13,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup start start-tunnel up down dev dev-down dev-logs logs logs-backend logs-frontend \
+.PHONY: help setup start start-tunnel pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network
 
 help: ## Mostra este help
@@ -62,6 +62,21 @@ start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env
 	COMPOSE_PROFILES=tunnel $(COMPOSE) up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
+
+pi-setup: ## Raspberry Pi: instala Docker, habilita no boot e configura swap 2GB
+	@echo "=== Instalando Docker ==="
+	curl -fsSL https://get.docker.com | sh
+	sudo usermod -aG docker $$USER
+	sudo systemctl enable docker
+	@echo ""
+	@echo "=== Configurando swap 2GB ==="
+	sudo dphys-swapfile swapoff
+	@echo "CONF_SWAPSIZE=2048" | sudo tee /etc/dphys-swapfile
+	sudo dphys-swapfile setup
+	sudo dphys-swapfile swapon
+	@echo ""
+	@echo "Docker instalado e swap configurado."
+	@echo "Feche e abra o terminal (ou rode 'newgrp docker') e então: make setup"
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data

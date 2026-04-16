@@ -1,65 +1,98 @@
 # Promo Snatcher
 
-Varredor de preços (Mercado Livre + Amazon) com gerenciamento de grupos WhatsApp.
+Varredor automático de preços (Mercado Livre + Amazon) com envio para grupos WhatsApp e Telegram.
 
-## Estrutura
-
-```
-backend/    FastAPI + SQLite + APScheduler
-frontend/   React + Vite + TailwindCSS
-```
-
-## Rodar em dev
-
-**Backend:**
-```bash
-cd backend
-uv venv .venv && uv pip install -r requirements.txt
-cp .env.example .env   # edite com suas configs
-uv run uvicorn app.main:app --reload --port 8000
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev   # http://localhost:3000
-```
-
-## Rodar com Docker
+## Início rápido
 
 ```bash
-cp backend/.env.example backend/.env
-docker compose up --build
-# Backend: http://localhost:8000
-# Frontend: http://localhost:3000
+git clone git@github.com:usuario/promo-snatcher.git
+cd promo-snatcher
+make setup       # cria .env e gera segredos automáticos
+nano .env        # preencher: AUTH_PASSWORD, EVOLUTION_API_KEY, PUBLIC_URL
+make start       # sobe a stack
 ```
 
-## Configuração WhatsApp
+Acesse: `http://localhost:6060`
 
-No site, acesse **Configurações** e preencha:
+Com Cloudflare Tunnel (acesso externo):
+```bash
+# Adicionar CLOUDFLARE_TOKEN no .env
+make start-tunnel
+```
 
-| Campo | Descrição |
+## Variáveis obrigatórias no .env
+
+| Variável | Descrição |
 |---|---|
-| Provider | `evolution` (self-hosted) ou `zapi` (SaaS) |
-| Base URL | URL da sua instância (ex: `http://localhost:8080`) |
-| API Key | Chave de autenticação |
-| Instance ID | Nome/ID da instância |
+| `AUTH_PASSWORD` | Senha do painel admin |
+| `EVOLUTION_API_KEY` | Chave da API WhatsApp (escolha qualquer senha forte) |
+| `PUBLIC_URL` | URL pública desta instância (usada nos links das mensagens) |
+| `AUTH_SECRET` | Gerado automaticamente pelo `make setup` |
 
-### Evolution API
-Instale em: https://github.com/EvolutionAPI/evolution-api
+## Comandos
 
-### Z-API
-Crie conta em: https://z-api.io
+```
+make setup          Cria .env e gera segredos automáticos
+make start          Sobe a stack (sem Cloudflare Tunnel)
+make start-tunnel   Sobe a stack + Cloudflare Tunnel
+make down           Para todos os containers
+make logs           Logs em tempo real
+make status         Status dos containers + próximo scan
+make scan           Dispara scan manual em todos os grupos
+make shell          Shell no container do backend
+```
 
-## Grupos
+---
 
-Cada grupo tem:
-- **search_prompt** — descrição do produto a buscar (ex: `whey protein isolado 900g`)
-- **min_val / max_val** — faixa de preço em R$
-- **whatsapp_group_id** — ID do grupo WA para envio automático (opcional)
+## Raspberry Pi
 
-O scanner roda a cada 30min (configurável). Novos produtos são enviados automaticamente ao grupo WA se configurado.
+### 1. Instalar Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+sudo systemctl enable docker
+newgrp docker
+```
+
+### 2. Configurar swap (evita OOM kills)
+
+```bash
+sudo dphys-swapfile swapoff
+echo "CONF_SWAPSIZE=2048" | sudo tee /etc/dphys-swapfile
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+```
+
+### 3. Subir a aplicação
+
+```bash
+git clone git@github.com:usuario/promo-snatcher.git
+cd promo-snatcher
+make setup
+nano .env   # AUTH_PASSWORD, EVOLUTION_API_KEY, PUBLIC_URL (ex: http://ip-do-pi:6060)
+make start
+```
+
+### Consumo de memória esperado
+
+| Container | Limite |
+|---|---|
+| backend (Python + Chromium) | 768 MB |
+| evolution (WhatsApp) | 512 MB |
+| postgres | 256 MB |
+| redis | 96 MB |
+| frontend (nginx) | 64 MB |
+| cloudflared | 64 MB |
+| **Total** | ~1.85 GB |
+
+Recomendado: Raspberry Pi 4 com 4 GB ou mais (64-bit OS).
+
+### Reinicialização automática
+
+Com `sudo systemctl enable docker` configurado, todos os containers sobem automaticamente quando o Pi reinicia — `restart: unless-stopped` está definido em todos os serviços.
+
+---
 
 ## API
 

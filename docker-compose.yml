@@ -30,12 +30,16 @@ services:
       - evo-postgres
       - evo-redis
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
-      interval: 10s
-      timeout: 5s
+      interval: 15s
+      timeout: 10s
       retries: 10
-      start_period: 15s
+      start_period: 60s   # Pi é mais lento pra subir
 
   evo-proxy:
     image: nginx:alpine
@@ -46,11 +50,24 @@ services:
     depends_on:
       - evolution
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 32m
 
   evo-postgres:
     image: postgres:15-alpine
     platform: linux/arm64
     container_name: promo-snatcher-evo-postgres
+    # Tuning para baixo consumo de RAM no Pi
+    command: >
+      postgres
+      -c shared_buffers=32MB
+      -c effective_cache_size=128MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=20
+      -c wal_buffers=4MB
     environment:
       - POSTGRES_DB=evolution
       - POSTGRES_USER=evolution
@@ -58,6 +75,10 @@ services:
     volumes:
       - evo_pg_data:/var/lib/postgresql/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   evo-redis:
     image: redis:7-alpine
@@ -66,10 +87,16 @@ services:
     volumes:
       - evo_redis_data:/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 96m
 
   backend:
     build: ./backend
     container_name: promo-snatcher-backend
+    # shm_size necessário para o Chromium (Amazon scraping) não crashar no Pi
+    shm_size: '128mb'
     volumes:
       - ./backend/data:/app/data
     environment:
@@ -89,12 +116,16 @@ services:
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768m
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
-      interval: 10s
-      timeout: 5s
+      interval: 15s
+      timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s   # Chromium ARM demora mais pra inicializar
 
   frontend:
     build: ./frontend
@@ -107,6 +138,10 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64m
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -116,6 +151,10 @@ services:
     profiles: [tunnel]
     depends_on:
       - frontend
+    deploy:
+      resources:
+        limits:
+          memory: 64m
 
 volumes:
   evo_instances:
