@@ -12,8 +12,16 @@ function EvolutionBadge() {
     queryKey: ['waHealth'], queryFn: getWAHealth, refetchInterval: 15_000, retry: false,
   })
   if (!health) return null
+  const offlineHint =
+    !health.online &&
+    (health.error ||
+      (health.status != null && `HTTP ${health.status}`) ||
+      (health.url && `nao alcancou ${health.url} a partir do backend`))
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${health.online ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+    <span
+      title={offlineHint || (health.url ? `${health.url}` : undefined)}
+      className={`text-xs px-2 py-0.5 rounded-full font-medium ${health.online ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}
+    >
       Evolution {health.online ? 'online' : 'offline'}
       {health.online && health.instances > 0 && ` (${health.instances})`}
     </span>
