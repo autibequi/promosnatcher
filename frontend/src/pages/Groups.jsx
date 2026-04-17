@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getWAAccounts, getWAAccountGroups, createWAAccountGroup, leaveWAAccountGroup,
   getTGChats,
@@ -14,17 +14,15 @@ export default function Groups() {
   const { data: waAccounts = [] } = useQuery({ queryKey: ['waAccounts'], queryFn: getWAAccounts, retry: false })
   const connectedAccounts = waAccounts.filter(a => a.status === 'connected')
 
-  // Load groups for each connected account
-  const waGroupQueries = connectedAccounts.map(a => ({
-    account: a,
-    ...useQuery({
+  // Load groups for each connected account (useQueries — array dinâmico OK)
+  const waGroupQueries = useQueries({
+    queries: connectedAccounts.map(a => ({
       queryKey: ['waGroups', a.id],
       queryFn: () => getWAAccountGroups(a.id),
-      enabled: true,
       staleTime: 30_000,
       retry: false,
-    }),
-  }))
+    })),
+  }).map((q, i) => ({ ...q, account: connectedAccounts[i] }))
 
   // TG chats
   const { data: tgChats = [] } = useQuery({ queryKey: ['tgChats'], queryFn: getTGChats, retry: false })
