@@ -101,6 +101,7 @@ services:
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
     restart: unless-stopped
     deploy:
       resources:

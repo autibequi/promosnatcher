@@ -10,6 +10,13 @@ engine = create_engine(
     echo=False,
 )
 
+# WAL mode: leituras não bloqueiam escritas — crítico com scheduler + requests simultâneos
+with engine.connect() as _conn:
+    _conn.execute(text("PRAGMA journal_mode=WAL"))
+    _conn.execute(text("PRAGMA synchronous=NORMAL"))
+    _conn.execute(text("PRAGMA cache_size=-8000"))   # 8MB cache em RAM
+    _conn.execute(text("PRAGMA temp_store=MEMORY"))
+
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

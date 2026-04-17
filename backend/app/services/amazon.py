@@ -73,31 +73,33 @@ def _parse_results(html: str, min_val: float, max_val: float) -> list[dict]:
 
 
 async def search(query: str, min_val: float, max_val: float) -> list[dict]:
-    from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
-
     url = _build_url(query, min_val, max_val)
-
-    browser_cfg = BrowserConfig(
-        browser_type="chromium",
-        headless=True,
-        extra_args=[
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",             # obrigatório em Docker
-            "--disable-dev-shm-usage",  # evita crash em /dev/shm pequeno
-        ],
-    )
-    run_cfg = CrawlerRunConfig(
-        cache_mode=CacheMode.BYPASS,
-        js_code="window.scrollTo(0, document.body.scrollHeight);",
-        delay_before_return_html=2.0,
-        page_timeout=30000,
-        simulate_user=True,
-        magic=True,
-    )
 
     # 2 tentativas — Chromium é caro, não vale mais que isso
     for attempt in range(2):
         try:
+            from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+
+            browser_cfg = BrowserConfig(
+                browser_type="chromium",
+                headless=True,
+                extra_args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",             # Pi não tem GPU — evita crash
+                    "--disable-software-rasterizer",
+                ],
+            )
+            run_cfg = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                js_code="window.scrollTo(0, document.body.scrollHeight);",
+                delay_before_return_html=2.0,
+                page_timeout=60000,              # ARM é mais lento — 60s
+                simulate_user=True,
+                magic=True,
+            )
+
             async with AsyncWebCrawler(config=browser_cfg) as crawler:
                 result = await crawler.arun(url=url, config=run_cfg)
 

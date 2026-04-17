@@ -51,13 +51,19 @@ async def crawl_search_term(search_term_id: int):
 
         try:
             if term.sources in ("all", "mercadolivre"):
-                results += await mercadolivre.search(
-                    term.query, term.min_val, term.max_val,
-                    client_id=config.ml_client_id if config else None,
-                    client_secret=config.ml_client_secret if config else None,
-                )
+                try:
+                    results += await mercadolivre.search(
+                        term.query, term.min_val, term.max_val,
+                        client_id=config.ml_client_id if config else None,
+                        client_secret=config.ml_client_secret if config else None,
+                    )
+                except Exception as e:
+                    logger.error("crawl.ml_error", extra={"term_id": term.id, "error": str(e)})
             if term.sources in ("all", "amazon"):
-                results += await amazon.search(term.query, term.min_val, term.max_val)
+                try:
+                    results += await amazon.search(term.query, term.min_val, term.max_val)
+                except Exception as e:
+                    logger.error("crawl.amz_error", extra={"term_id": term.id, "error": str(e)})
 
             # Salva cada resultado como CrawlResult raw
             for item in results:
