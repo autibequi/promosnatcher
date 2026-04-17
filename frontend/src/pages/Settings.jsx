@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getConfig, updateConfig,
   getWAHealth, getWAAccounts, createWAAccount, updateWAAccount, deleteWAAccount, getWAAccountStatus, testWAAccount,
-  startWAAccountSession, logoutWAAccount,
+  startWAAccountSession, logoutWAAccount, getWAAccountGroups, createWAAccountGroup, leaveWAAccountGroup,
   getTGAccounts, createTGAccount, updateTGAccount, deleteTGAccount, testTGAccount,
 } from '../api'
 
@@ -23,6 +23,83 @@ function EvolutionBadge() {
 const field = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors'
 const label = 'block text-sm font-medium text-gray-300 mb-1'
 const badge = 'text-xs px-2 py-0.5 rounded-full font-medium'
+
+function WAGroupsSection({ accountId, onLogout, logoutPending }) {
+  const qc = useQueryClient()
+  const [showGroups, setShowGroups] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+
+  const { data: groups = [], isLoading } = useQuery({
+    queryKey: ['waGroups', accountId], queryFn: () => getWAAccountGroups(accountId),
+    enabled: showGroups, staleTime: 30_000,
+  })
+
+  const createGroup = useMutation({
+    mutationFn: (name) => createWAAccountGroup(accountId, name),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waGroups', accountId] }); setNewGroupName('') },
+  })
+  const leaveGroup = useMutation({
+    mutationFn: (groupId) => leaveWAAccountGroup(accountId, groupId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['waGroups', accountId] }),
+  })
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-green-400">✅ WhatsApp conectado</span>
+        <div className="flex gap-3">
+          <button onClick={() => setShowGroups(s => !s)} className="text-xs text-blue-400 hover:text-blue-300">
+            {showGroups ? '▲ Grupos' : '▼ Grupos'}
+          </button>
+          <button onClick={onLogout} disabled={logoutPending} className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50">
+            🚪 Desconectar
+          </button>
+        </div>
+      </div>
+
+      {showGroups && (
+        <div className="bg-gray-900 rounded-lg p-3 space-y-2">
+          {/* Criar grupo */}
+          <div className="flex gap-2">
+            <input className={field} placeholder="Nome do novo grupo" value={newGroupName}
+              onChange={e => setNewGroupName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && newGroupName.trim() && createGroup.mutate(newGroupName)} />
+            <button onClick={() => createGroup.mutate(newGroupName)} disabled={!newGroupName.trim() || createGroup.isPending}
+              className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap">
+              {createGroup.isPending ? '...' : '+ Criar'}
+            </button>
+          </div>
+          {createGroup.isSuccess && createGroup.data?.invite_link && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-green-400">Criado!</span>
+              <input readOnly value={createGroup.data.invite_link} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-green-400 font-mono text-xs" />
+              <button onClick={() => navigator.clipboard.writeText(createGroup.data.invite_link)} className="text-gray-400 hover:text-white">📋</button>
+            </div>
+          )}
+
+          {/* Lista de grupos */}
+          {isLoading && <p className="text-xs text-gray-500">Carregando grupos...</p>}
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {groups.map(g => (
+              <div key={g.id} className="flex items-center justify-between py-1.5 px-2 bg-gray-800 rounded text-xs">
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-300 truncate">{g.name}</p>
+                  <p className="text-gray-600 font-mono truncate">{g.id}</p>
+                </div>
+                <div className="flex gap-2 ml-2 flex-shrink-0">
+                  <button onClick={() => navigator.clipboard.writeText(g.id)} className="text-gray-500 hover:text-blue-400" title="Copiar ID">📋</button>
+                  <button onClick={() => { if (confirm(`Sair do grupo "${g.name}"?`)) leaveGroup.mutate(g.id) }}
+                    className="text-gray-500 hover:text-red-400" title="Sair">🚪</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {!isLoading && groups.length === 0 && <p className="text-xs text-gray-600">Nenhum grupo com o prefixo configurado.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function WAAccountCard({ account }) {
   const qc = useQueryClient()
@@ -102,15 +179,9 @@ function WAAccountCard({ account }) {
         </div>
       )}
 
-      {/* Conectado — botão logout */}
+      {/* Conectado — logout + grupos */}
       {waStatus === 'WORKING' && (
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-green-400">✅ WhatsApp conectado</span>
-          <button onClick={() => { if (confirm('Desconectar WhatsApp?')) logout.mutate() }} disabled={logout.isPending}
-            className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50">
-            🚪 Desconectar
-          </button>
-        </div>
+        <WAGroupsSection accountId={account.id} onLogout={() => { if (confirm('Desconectar WhatsApp?')) logout.mutate() }} logoutPending={logout.isPending} />
       )}
 
       {/* Edit form */}

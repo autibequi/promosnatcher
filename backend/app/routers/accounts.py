@@ -198,6 +198,40 @@ async def wa_account_groups(account_id: int, session: Session = Depends(get_sess
     return groups
 
 
+@router.post("/wa/{account_id}/groups")
+async def wa_account_create_group(account_id: int, body: dict, session: Session = Depends(get_session)):
+    """Cria grupo WA nesta conta."""
+    account = session.get(WAAccount, account_id)
+    if not account:
+        raise HTTPException(404, "WA account not found")
+    adapter = get_adapter(account.provider, account.base_url or "", account.api_key or "", account.instance or "")
+    if not adapter:
+        raise HTTPException(400, "WA não configurado")
+    name = body.get("name", "")
+    prefix = account.group_prefix or ""
+    full_name = f"{prefix} - {name}" if prefix else name
+    wa_id = await adapter.create_group(full_name, [])
+    if wa_id:
+        invite = await adapter.get_invite_link(wa_id)
+        return {"group_id": wa_id, "name": full_name, "invite_link": invite}
+    raise HTTPException(422, "Falha ao criar grupo")
+
+
+@router.delete("/wa/{account_id}/groups/{group_id}")
+async def wa_account_leave_group(account_id: int, group_id: str, session: Session = Depends(get_session)):
+    """Sai de um grupo WA nesta conta."""
+    account = session.get(WAAccount, account_id)
+    if not account:
+        raise HTTPException(404, "WA account not found")
+    adapter = get_adapter(account.provider, account.base_url or "", account.api_key or "", account.instance or "")
+    if not adapter:
+        raise HTTPException(400, "WA não configurado")
+    ok = await adapter.leave_group(group_id)
+    if ok:
+        return {"message": "Saiu do grupo"}
+    raise HTTPException(422, "Falha ao sair do grupo")
+
+
 @router.post("/wa/{account_id}/test")
 async def wa_account_test(account_id: int, session: Session = Depends(get_session)):
     """Testa conexão WA."""
