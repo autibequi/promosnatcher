@@ -84,8 +84,12 @@ app.include_router(scan.router, prefix="/api", dependencies=[Depends(require_aut
 # Rotas públicas do config (sem auth) — registradas ANTES do router protegido
 from fastapi.responses import HTMLResponse
 from .routers.config import wa_qr
+from .routers.accounts import wa_account_qr
 app.add_api_route("/api/config/wa/qr", wa_qr, methods=["GET"],
                   response_class=HTMLResponse, tags=["config"])
+# QR code per-account — público (iframe sem JWT)
+app.add_api_route("/api/accounts/wa/{account_id}/qr", wa_account_qr, methods=["GET"],
+                  response_class=HTMLResponse, tags=["accounts"])
 
 app.include_router(config.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(telegram.router, prefix="/api", dependencies=[Depends(require_auth)])
