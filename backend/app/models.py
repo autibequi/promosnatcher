@@ -61,7 +61,7 @@ class PriceHistory(SQLModel, table=True):
 class ScanJob(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     group_id: int = Field(foreign_key="group.id")
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     finished_at: Optional[datetime] = None
     products_found: int = 0
     status: str = "running"  # running | done | error
@@ -170,7 +170,7 @@ class SearchTerm(SQLModel, table=True):
     crawl_interval: int = 30  # minutos
     last_crawled_at: Optional[datetime] = None
     result_count: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     crawl_results: list["CrawlResult"] = Relationship(back_populates="search_term")
 
@@ -184,8 +184,8 @@ class CrawlResult(SQLModel, table=True):
     url: str
     image_url: Optional[str] = None
     source: str  # "amazon" | "mercadolivre"
-    crawled_at: datetime = Field(default_factory=datetime.utcnow)
-    catalog_variant_id: Optional[int] = Field(default=None, foreign_key="catalogvariant.id")
+    crawled_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    catalog_variant_id: Optional[int] = Field(default=None, foreign_key="catalogvariant.id", index=True)
 
     search_term: Optional[SearchTerm] = Relationship(back_populates="crawl_results")
 
@@ -202,7 +202,7 @@ class CatalogProduct(SQLModel, table=True):
     lowest_price_source: Optional[str] = None
     tags: str = "[]"  # JSON array: ["profit", "whey-isolado"]
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     variants: list["CatalogVariant"] = Relationship(back_populates="catalog_product")
 
@@ -260,7 +260,7 @@ class PriceHistoryV2(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     variant_id: int = Field(foreign_key="catalogvariant.id", index=True)
     price: float
-    recorded_at: datetime = Field(default_factory=datetime.utcnow)
+    recorded_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
     variant: Optional[CatalogVariant] = Relationship(back_populates="price_history_v2")
 

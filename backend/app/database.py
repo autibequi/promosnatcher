@@ -1,6 +1,6 @@
 import os
 from sqlmodel import create_engine, SQLModel, Session
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 
@@ -10,12 +10,14 @@ engine = create_engine(
     echo=False,
 )
 
-# WAL mode: leituras não bloqueiam escritas — crítico com scheduler + requests simultâneos
-with engine.connect() as _conn:
-    _conn.execute(text("PRAGMA journal_mode=WAL"))
-    _conn.execute(text("PRAGMA synchronous=NORMAL"))
-    _conn.execute(text("PRAGMA cache_size=-8000"))   # 8MB cache em RAM
-    _conn.execute(text("PRAGMA temp_store=MEMORY"))
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, _):
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.execute("PRAGMA cache_size=-8000")  # 8MB page cache
+    cur.execute("PRAGMA temp_store=MEMORY")
+    cur.close()
 
 
 def create_db_and_tables():
@@ -53,6 +55,21 @@ def migrate_db():
             # Channel digest mode
             'ALTER TABLE channel ADD COLUMN digest_mode BOOLEAN DEFAULT 0',
             'ALTER TABLE channel ADD COLUMN digest_max_items INTEGER DEFAULT 5',
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass
+
+        # Índices para queries frequentes — CREATE INDEX IF NOT EXISTS é idempotente
+        for idx in [
+            'CREATE INDEX IF NOT EXISTS ix_scanjob_started_at ON scanjob (started_at)',
+            'CREATE INDEX IF NOT EXISTS ix_searchterm_created_at ON searchterm (created_at)',
+            'CREATE INDEX IF NOT EXISTS ix_crawlresult_crawled_at ON crawlresult (crawled_at)',
+            'CREATE INDEX IF NOT EXISTS ix_crawlresult_variant_id ON crawlresult (catalog_variant_id)',
+            'CREATE INDEX IF NOT EXISTS ix_catalogproduct_updated_at ON catalogproduct (updated_at)',
+            'CREATE INDEX IF NOT EXISTS ix_pricehistoryv2_recorded_at ON pricehistoryv2 (recorded_at)',
         ]:
             try:
                 conn.execute(text(stmt))

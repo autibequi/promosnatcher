@@ -18,27 +18,46 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 
 @router.get("", response_model=list[ChannelRead])
 def list_channels(session: Session = Depends(get_session)):
+    from collections import defaultdict
     channels = session.exec(select(Channel).order_by(Channel.created_at.desc())).all()
+    if not channels:
+        return []
+
+    ch_ids = [ch.id for ch in channels]
+
+    all_targets = session.exec(
+        select(ChannelTarget).where(ChannelTarget.channel_id.in_(ch_ids))
+    ).all()
+    all_rules = session.exec(
+        select(ChannelRule).where(ChannelRule.channel_id.in_(ch_ids))
+    ).all()
+
+    targets_by_ch: dict[int, list] = defaultdict(list)
+    for t in all_targets:
+        targets_by_ch[t.channel_id].append(t)
+
+    rules_by_ch: dict[int, list] = defaultdict(list)
+    for r in all_rules:
+        rules_by_ch[r.channel_id].append(r)
+
+    # Sent count em uma query só
+    target_ids = [t.id for t in all_targets]
+    sent_by_target: dict[int, int] = {}
+    if target_ids:
+        rows = session.exec(
+            select(SentMessageV2.channel_target_id, func.count(SentMessageV2.id))
+            .where(SentMessageV2.channel_target_id.in_(target_ids))
+            .group_by(SentMessageV2.channel_target_id)
+        ).all()
+        sent_by_target = {tid: cnt for tid, cnt in rows}
+
     result = []
     for ch in channels:
-        targets = session.exec(
-            select(ChannelTarget).where(ChannelTarget.channel_id == ch.id)
-        ).all()
-        rules = session.exec(
-            select(ChannelRule).where(ChannelRule.channel_id == ch.id)
-        ).all()
-        target_ids = [t.id for t in targets]
-        sent_count = 0
-        if target_ids:
-            sent_count = session.scalar(
-                select(func.count(SentMessageV2.id)).where(
-                    SentMessageV2.channel_target_id.in_(target_ids)
-                )
-            ) or 0
+        targets = targets_by_ch[ch.id]
         data = ch.model_dump()
         data["targets"] = [t.model_dump() for t in targets]
-        data["rules"] = [r.model_dump() for r in rules]
-        data["sent_count"] = sent_count
+        data["rules"] = [r.model_dump() for r in rules_by_ch[ch.id]]
+        data["sent_count"] = sum(sent_by_target.get(t.id, 0) for t in targets)
         result.append(data)
     return result
 

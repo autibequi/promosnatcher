@@ -46,15 +46,19 @@ def list_products(
         .offset(offset).limit(limit)
     ).all()
 
-    # Adicionar variant_count
+    # variant_count em uma query só
+    product_ids = [p.id for p in products]
+    counts_rows = session.exec(
+        select(CatalogVariant.catalog_product_id, func.count(CatalogVariant.id))
+        .where(CatalogVariant.catalog_product_id.in_(product_ids))
+        .group_by(CatalogVariant.catalog_product_id)
+    ).all() if product_ids else []
+    variant_counts = {pid: cnt for pid, cnt in counts_rows}
+
     items = []
     for p in products:
-        count = session.scalar(
-            select(func.count(CatalogVariant.id))
-            .where(CatalogVariant.catalog_product_id == p.id)
-        ) or 0
         data = p.model_dump()
-        data["variant_count"] = count
+        data["variant_count"] = variant_counts.get(p.id, 0)
         items.append(data)
 
     return CatalogProductsPage(items=items, total=total, limit=limit, offset=offset)
