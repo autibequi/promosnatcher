@@ -33,27 +33,23 @@ const Channels = lazy(() => import('./pages/Channels'))
 
 function AdminNav({ onLogout }) {
   const link = ({ isActive }) =>
-    `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+    `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
       isActive ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
     }`
 
   return (
     <nav className="border-b border-gray-800 bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 sm:gap-4 flex-wrap">
-        <span className="text-green-400 font-bold text-lg mr-2 sm:mr-4">🔥 <span className="hidden sm:inline">Promo Snatcher</span></span>
+      <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-1.5 sm:gap-3 overflow-x-auto">
+        <NavLink to="/admin" end className="text-green-400 font-bold text-lg mr-1 sm:mr-3 flex-shrink-0">🔥</NavLink>
         <NavLink to="/admin" end className={link}>Dashboard</NavLink>
         <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
         <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
         <NavLink to="/admin/channels" className={link}>Canais</NavLink>
         <NavLink to="/admin/settings" className={link}>Config</NavLink>
-        <div className="ml-auto">
-          <button
-            onClick={onLogout}
-            className="text-gray-500 hover:text-gray-300 text-sm px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            Sair
-          </button>
-        </div>
+        <button onClick={onLogout}
+          className="ml-auto text-gray-500 hover:text-gray-300 text-sm px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">
+          Sair
+        </button>
       </div>
     </nav>
   )
