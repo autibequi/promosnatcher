@@ -78,6 +78,9 @@ function ProductRow({ product }) {
             {product.weight && <span className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">{product.weight}</span>}
             {tags.map(t => <span key={t} className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded">#{t}</span>)}
             <span className="text-xs text-gray-500">{product.variant_count} variante{product.variant_count !== 1 ? 's' : ''}</span>
+            {product.lowest_price_source && detail?.variants?.some(v => v.source !== product.lowest_price_source) && (
+              <span className="text-xs bg-cyan-900 text-cyan-300 px-1.5 py-0.5 rounded">multi-source</span>
+            )}
           </div>
         </div>
         <div className="text-right flex-shrink-0">

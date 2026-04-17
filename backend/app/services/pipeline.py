@@ -290,6 +290,18 @@ def _format_channel_message(variant: CatalogVariant, product: CatalogProduct, te
     return tmpl.format_map(ctx)
 
 
+def _format_digest_message(items: list[tuple], channel_name: str) -> str:
+    """Formata mensagem consolidada (digest) com top N produtos."""
+    lines = [f"*Top {len(items)} ofertas — {channel_name}*\n"]
+    for i, (variant, product) in enumerate(items, 1):
+        price_fmt = f"R$ {variant.price:.2f}".replace(".", ",")
+        source = "ML" if variant.source == "mercadolivre" else "AMZ"
+        lines.append(f"{i}. {variant.title[:60]}")
+        lines.append(f"   {price_fmt} ({source})")
+        lines.append(f"   {variant.url}\n")
+    return "\n".join(lines)
+
+
 def _detect_events(variant: CatalogVariant, session: Session, drop_threshold: float = 0.10) -> set[str]:
     """Detecta eventos reais para uma variante: new, drop, lowest."""
     from datetime import timedelta
@@ -357,9 +369,9 @@ async def evaluate_channels():
                 select(CatalogProduct).where(CatalogProduct.updated_at >= recent_cutoff)
             ).all()
 
-            sent_count = 0
+            # Coleta produtos que passam nas rules
+            sendable: list[tuple] = []  # (product, cheapest_variant, is_drop)
             for product in recent_products:
-                # Cheapest variant
                 variants = session.exec(
                     select(CatalogVariant).where(
                         CatalogVariant.catalog_product_id == product.id
@@ -372,21 +384,49 @@ async def evaluate_channels():
                 for rule in rules:
                     if not _rule_matches_product(rule, product, session):
                         continue
-
-                    # Detectar eventos REAIS na variante
                     events = _detect_events(cheapest, session, rule.drop_threshold)
-
                     should_send = (
                         ("new" in events and rule.notify_new) or
                         ("drop" in events and rule.notify_drop) or
                         ("lowest" in events and rule.notify_lowest)
                     )
-                    if not should_send:
+                    if should_send:
+                        sendable.append((product, cheapest, "drop" in events))
+                        break
+
+            if not sendable:
+                continue
+
+            sent_count = 0
+
+            # Digest mode: acumula e envia 1 mensagem consolidada
+            if channel.digest_mode:
+                top_items = sorted(sendable, key=lambda x: x[1].price)[:channel.digest_max_items]
+                digest_msg = _format_digest_message(
+                    [(v, p) for p, v, _ in top_items], channel.name
+                )
+                for target in targets:
+                    # Dedup: checa se TODOS os produtos já foram enviados
+                    all_sent = all(_product_already_sent(session, p.id, target.id, d) for p, _, d in top_items)
+                    if all_sent:
                         continue
 
-                    is_drop = "drop" in events
-                    is_lowest = "lowest" in events
+                    adapter = None
+                    if target.provider == "whatsapp" and config:
+                        adapter = get_adapter(config.wa_provider, config.wa_base_url or "", config.wa_api_key or "", config.wa_instance or "")
+                    elif target.provider == "telegram" and config:
+                        adapter = get_tg_adapter(config)
+                    if not adapter:
+                        continue
 
+                    ok = await adapter.send_text(target.chat_id, digest_msg)
+                    if ok:
+                        for p, _, d in top_items:
+                            session.add(SentMessageV2(catalog_product_id=p.id, channel_target_id=target.id, is_drop=d))
+                        sent_count += len(top_items)
+            else:
+                # Modo normal: 1 mensagem por produto
+                for product, cheapest, is_drop in sendable:
                     for target in targets:
                         if _product_already_sent(session, product.id, target.id, is_drop):
                             continue

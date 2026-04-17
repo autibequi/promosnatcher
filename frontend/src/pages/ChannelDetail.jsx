@@ -199,6 +199,24 @@ export default function ChannelDetail() {
         </div>
       )}
 
+      {/* Digest toggle */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-300">Modo Digest</p>
+            <p className="text-xs text-gray-500">
+              {channel.digest_mode
+                ? `Envia "Top ${channel.digest_max_items} ofertas" consolidado`
+                : 'Envia 1 mensagem por produto individualmente'}
+            </p>
+          </div>
+          <button type="button" onClick={() => update.mutate({ digest_mode: !channel.digest_mode })}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channel.digest_mode ? 'bg-green-600' : 'bg-gray-700'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${channel.digest_mode ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Targets */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">

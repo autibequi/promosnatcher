@@ -43,6 +43,9 @@ def migrate_db():
             'ALTER TABLE product ADD COLUMN family_key TEXT',
             # TelegramChat → Channel linking
             'ALTER TABLE telegramchat ADD COLUMN linked_channel_id INTEGER',
+            # Channel digest mode
+            'ALTER TABLE channel ADD COLUMN digest_mode BOOLEAN DEFAULT 0',
+            'ALTER TABLE channel ADD COLUMN digest_max_items INTEGER DEFAULT 5',
         ]:
             try:
                 conn.execute(text(stmt))

@@ -268,6 +268,8 @@ class ChannelCreate(BaseModel):
     message_template: Optional[str] = None
     send_start_hour: int = 8
     send_end_hour: int = 22
+    digest_mode: bool = False
+    digest_max_items: int = 5
 
 class ChannelUpdate(BaseModel):
     name: Optional[str] = None
@@ -275,6 +277,8 @@ class ChannelUpdate(BaseModel):
     message_template: Optional[str] = None
     send_start_hour: Optional[int] = None
     send_end_hour: Optional[int] = None
+    digest_mode: Optional[bool] = None
+    digest_max_items: Optional[int] = None
     active: Optional[bool] = None
 
 class ChannelTargetRead(BaseModel):
@@ -320,6 +324,8 @@ class ChannelRead(BaseModel):
     message_template: Optional[str]
     send_start_hour: int
     send_end_hour: int
+    digest_mode: bool = False
+    digest_max_items: int = 5
     active: bool
     created_at: datetime
     targets: List[ChannelTargetRead] = []

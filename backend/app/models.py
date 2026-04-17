@@ -255,6 +255,8 @@ class Channel(SQLModel, table=True):
     message_template: Optional[str] = None
     send_start_hour: int = 8
     send_end_hour: int = 22
+    digest_mode: bool = False  # True = acumula e envia consolidado
+    digest_max_items: int = 5  # quantos produtos no digest
     active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
