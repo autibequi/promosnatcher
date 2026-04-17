@@ -50,6 +50,12 @@ async def lifespan(app: FastAPI):
     create_db_and_tables()
     migrate_db()
     _configure_defaults()
+    # v2 migration: Group/Product → pipeline models
+    from .services.migrate_v2 import migrate_v1_to_v2
+    try:
+        migrate_v1_to_v2()
+    except Exception as e:
+        logger.error(f"v2 migration failed (non-fatal): {e}")
     interval = int(os.getenv("SCAN_INTERVAL", "30"))
     scheduler.start(interval)
     logger.info("App started")
