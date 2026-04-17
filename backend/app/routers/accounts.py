@@ -49,7 +49,18 @@ def list_wa_accounts(session: Session = Depends(get_session)):
 
 @router.post("/wa", response_model=WAAccountRead, status_code=201)
 def create_wa_account(data: WAAccountCreate, session: Session = Depends(get_session)):
-    account = WAAccount(**data.model_dump())
+    # Auto-preenche campos vazios do AppConfig (URL, api_key vêm das env vars)
+    from ..models import AppConfig
+    config = session.get(AppConfig, 1)
+    account_data = data.model_dump()
+    if config:
+        if not account_data.get("base_url"):
+            account_data["base_url"] = config.wa_base_url
+        if not account_data.get("api_key"):
+            account_data["api_key"] = config.wa_api_key
+        if not account_data.get("provider"):
+            account_data["provider"] = config.wa_provider or "evolution"
+    account = WAAccount(**account_data)
     session.add(account)
     session.commit()
     session.refresh(account)
