@@ -14,7 +14,7 @@ FRONTEND_URL := http://localhost:6060
 .DEFAULT_GOAL := help
 
 .PHONY: help setup start start-tunnel deploy deploy-tunnel update pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
-        shell ps clean test scan status fix-network
+        shell ps clean test scan status fix-network build-base
 
 help: ## Mostra este help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*##"}{printf "\033[36m%-18s\033[0m %s\n",$$1,$$2}'
@@ -100,6 +100,16 @@ pi-setup: ## Raspberry Pi: instala Docker, habilita no boot e configura swap 2GB
 	@echo ""
 	@echo "Docker instalado e swap configurado."
 	@echo "Feche e abra o terminal (ou rode 'newgrp docker') e então: make setup"
+
+build-base: ## Builda a imagem base do backend (system libs + pip + Chromium)
+	@echo "Buildando imagem base (leva ~10min na primeira vez)..."
+	docker buildx build \
+		-f backend/Dockerfile.base \
+		-t ghcr.io/autibequi/promosnatcher-base:latest \
+		--load \
+		backend/
+	@echo ""
+	@echo "Base image pronta. Builds subsequentes do backend levam ~5s."
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data

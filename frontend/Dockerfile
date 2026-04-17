@@ -1,14 +1,15 @@
-FROM node:20-alpine AS build
+# Build stage: roda na arch do host (x86) — npm gera HTML/JS/CSS estatico
+FROM --platform=$BUILDPLATFORM node:20-alpine AS build
 
 WORKDIR /app
 COPY package.json .
-# Cache npm entre builds — só reinstala se package.json mudar
 RUN --mount=type=cache,target=/root/.npm \
     npm install
 
 COPY . .
 RUN npm run build
 
+# Runtime: ARM64 para o Pi
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf

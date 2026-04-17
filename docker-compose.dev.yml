@@ -56,7 +56,10 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      # Usa a base pre-built (make build-base na primeira vez)
+      dockerfile: Dockerfile
     container_name: promo-snatcher-backend
     ports:
       - "8000:8000"
