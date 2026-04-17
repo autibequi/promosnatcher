@@ -13,7 +13,7 @@ const safeFetch = (fn) => async () => {
 
 function StatCard({ label, value, icon, link, color = 'text-white', desc }) {
   const inner = (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors h-full">
       <p className="text-gray-400 text-xs uppercase tracking-wider">{label}</p>
       <div className="flex items-center gap-3 mt-2">
         <span className="text-3xl">{icon}</span>
@@ -22,7 +22,7 @@ function StatCard({ label, value, icon, link, color = 'text-white', desc }) {
       {desc && <p className="text-xs text-gray-600 mt-2">{desc}</p>}
     </div>
   )
-  return link ? <Link to={link}>{inner}</Link> : inner
+  return link ? <Link to={link} className="block h-full">{inner}</Link> : inner
 }
 
 export default function Dashboard() {
