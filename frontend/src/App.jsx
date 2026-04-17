@@ -24,7 +24,6 @@ class ErrorBoundary extends Component {
 import Frontpage from './pages/Frontpage'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
-import Analytics from './pages/Analytics'
 import Login from './pages/Login'
 
 // v2 pages — lazy load para nao crashar o app se api.js nao tiver os exports
@@ -42,11 +41,10 @@ function AdminNav({ onLogout }) {
     <nav className="border-b border-gray-800 bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 sm:gap-4 flex-wrap">
         <span className="text-green-400 font-bold text-lg mr-2 sm:mr-4">🔥 <span className="hidden sm:inline">Promo Snatcher</span></span>
-        <NavLink to="/admin" end className={link}>Home</NavLink>
+        <NavLink to="/admin" end className={link}>Dashboard</NavLink>
         <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
         <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
         <NavLink to="/admin/channels" className={link}>Canais</NavLink>
-        <NavLink to="/admin/analytics" className={link}>Analytics</NavLink>
         <NavLink to="/admin/settings" className={link}>Config</NavLink>
         <div className="ml-auto">
           <button
@@ -131,13 +129,6 @@ export default function App() {
             </main>
           </RequireAuth>
         } />
-        <Route path="/admin/analytics" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><Analytics /></main>
-          </RequireAuth>
-        } />
-
         {/* Catch-all → frontpage */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
