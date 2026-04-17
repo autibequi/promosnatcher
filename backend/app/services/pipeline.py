@@ -12,7 +12,7 @@ import os
 import re
 from datetime import datetime
 
-import pytz
+from zoneinfo import ZoneInfo
 from sqlmodel import Session, select
 
 from ..database import engine
@@ -251,7 +251,7 @@ def process_crawl_results():
 # ---------------------------------------------------------------------------
 
 def _within_send_window(start_hour: int, end_hour: int) -> bool:
-    tz = pytz.timezone(os.getenv("TZ_NAME", "America/Sao_Paulo"))
+    tz = ZoneInfo(os.getenv("TZ_NAME", "America/Sao_Paulo"))
     now_hour = datetime.now(tz).hour
     return start_hour <= now_hour < end_hour
 

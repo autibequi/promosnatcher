@@ -1,13 +1,13 @@
 import asyncio
 import logging
 import threading
-import pytz
+from datetime import timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 logger = logging.getLogger(__name__)
 
-_UTC = pytz.utc
+_UTC = timezone.utc
 _scheduler = BackgroundScheduler(timezone=_UTC)
 _interval_minutes = 30
 _running = threading.Event()  # guard contra double-run
