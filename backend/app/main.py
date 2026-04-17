@@ -9,7 +9,7 @@ load_dotenv()
 
 from .database import create_db_and_tables, migrate_db
 from .routers import scan, config, auth as auth_router, redirect, analytics, public, telegram
-from .routers import search_terms, catalog, channels
+from .routers import search_terms, catalog, channels, accounts
 from .services.auth import require_auth
 from .services import scheduler
 from .models import AppConfig
@@ -90,6 +90,7 @@ app.add_api_route("/api/config/wa/qr", wa_qr, methods=["GET"],
 app.include_router(config.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(telegram.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(analytics.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(accounts.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 # v2 Pipeline routers
 app.include_router(search_terms.router, prefix="/api", dependencies=[Depends(require_auth)])

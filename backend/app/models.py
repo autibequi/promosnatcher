@@ -94,6 +94,32 @@ class AppConfig(SQLModel, table=True):
     tg_last_update_id: Optional[int] = None  # offset do getUpdates
 
 
+class WAAccount(SQLModel, table=True):
+    """Conta WhatsApp — permite múltiplas instâncias Evolution/WAHA."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str  # "Principal", "Backup", etc.
+    provider: str = "evolution"
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    instance: Optional[str] = "default"
+    group_prefix: Optional[str] = "Snatcher"
+    status: str = "disconnected"  # connected | disconnected | error
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TGAccount(SQLModel, table=True):
+    """Conta Telegram — permite múltiplos bots."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str  # "Bot Principal", etc.
+    bot_token: Optional[str] = None
+    bot_username: Optional[str] = None
+    group_prefix: Optional[str] = "Snatcher"
+    last_update_id: Optional[int] = None
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class ClickLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="product.id", index=True)

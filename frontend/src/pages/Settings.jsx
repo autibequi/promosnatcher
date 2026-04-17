@@ -1,374 +1,312 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getConfig, updateConfig, testWA, testTG,
-         getWAStatus, startWASession, logoutWASession, getTGStatus } from '../api'
+import {
+  getConfig, updateConfig,
+  getWAAccounts, createWAAccount, updateWAAccount, deleteWAAccount, getWAAccountStatus, testWAAccount,
+  getTGAccounts, createTGAccount, updateTGAccount, deleteTGAccount, testTGAccount,
+} from '../api'
+
+const field = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors'
+const label = 'block text-sm font-medium text-gray-300 mb-1'
+const badge = 'text-xs px-2 py-0.5 rounded-full font-medium'
+
+function WAAccountCard({ account }) {
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({})
+
+  const { data: status } = useQuery({
+    queryKey: ['waStatus', account.id],
+    queryFn: () => getWAAccountStatus(account.id),
+    refetchInterval: 5000,
+    retry: false,
+  })
+
+  const update = useMutation({
+    mutationFn: (data) => updateWAAccount(account.id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waAccounts'] }); setEditing(false) },
+  })
+  const del = useMutation({
+    mutationFn: () => deleteWAAccount(account.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['waAccounts'] }),
+  })
+  const test = useMutation({ mutationFn: () => testWAAccount(account.id) })
+
+  const waStatus = status?.status || 'UNKNOWN'
+  const statusColor = {
+    WORKING: 'bg-green-900 text-green-300',
+    SCAN_QR_CODE: 'bg-yellow-900 text-yellow-300',
+    STARTING: 'bg-blue-900 text-blue-300',
+  }[waStatus] || 'bg-gray-800 text-gray-500'
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-white">{account.name}</p>
+          <span className={`${badge} ${statusColor}`}>{waStatus}</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => test.mutate()} className="text-xs text-gray-400 hover:text-green-400">🧪</button>
+          <button onClick={() => { setEditing(e => !e); setForm({ name: account.name, base_url: account.base_url || '', api_key: '', instance: account.instance || '', group_prefix: account.group_prefix || '' }) }}
+            className="text-xs text-gray-400 hover:text-white">✏️</button>
+          <button onClick={() => { if (confirm(`Remover "${account.name}"?`)) del.mutate() }}
+            className="text-xs text-gray-400 hover:text-red-400">🗑️</button>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500">{account.provider} | {account.instance} | {account.base_url || 'sem URL'}</p>
+      {test.isSuccess && <p className="text-xs text-green-400 mt-1">Conectado!</p>}
+      {test.isError && <p className="text-xs text-red-400 mt-1">Falha na conexão</p>}
+
+      {editing && (
+        <div className="mt-3 pt-3 border-t border-gray-700 space-y-2">
+          <input className={field} placeholder="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input className={field} placeholder="URL (http://evolution:8080)" value={form.base_url} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))} />
+          <input className={field} type="password" placeholder="API Key" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))} />
+          <input className={field} placeholder="Instance" value={form.instance} onChange={e => setForm(f => ({ ...f, instance: e.target.value }))} />
+          <div className="flex gap-2">
+            <button onClick={() => update.mutate(form)} className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg">Salvar</button>
+            <button onClick={() => setEditing(false)} className="bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg">Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TGAccountCard({ account }) {
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({})
+
+  const update = useMutation({
+    mutationFn: (data) => updateTGAccount(account.id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tgAccounts'] }); setEditing(false) },
+  })
+  const del = useMutation({
+    mutationFn: () => deleteTGAccount(account.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tgAccounts'] }),
+  })
+  const test = useMutation({ mutationFn: () => testTGAccount(account.id) })
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-white">{account.name}</p>
+          {account.bot_username && <span className="text-xs text-blue-400">@{account.bot_username}</span>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => test.mutate()} className="text-xs text-gray-400 hover:text-green-400">🧪</button>
+          <button onClick={() => { setEditing(e => !e); setForm({ name: account.name, bot_token: '', group_prefix: account.group_prefix || '' }) }}
+            className="text-xs text-gray-400 hover:text-white">✏️</button>
+          <button onClick={() => { if (confirm(`Remover "${account.name}"?`)) del.mutate() }}
+            className="text-xs text-gray-400 hover:text-red-400">🗑️</button>
+        </div>
+      </div>
+      {test.isSuccess && <p className="text-xs text-green-400 mt-1">Bot conectado: @{test.data?.me?.username}</p>}
+      {test.isError && <p className="text-xs text-red-400 mt-1">Token inválido</p>}
+
+      {editing && (
+        <div className="mt-3 pt-3 border-t border-gray-700 space-y-2">
+          <input className={field} placeholder="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input className={field} type="password" placeholder="Bot Token" value={form.bot_token} onChange={e => setForm(f => ({ ...f, bot_token: e.target.value }))} />
+          <input className={field} placeholder="Prefixo grupos" value={form.group_prefix} onChange={e => setForm(f => ({ ...f, group_prefix: e.target.value }))} />
+          <div className="flex gap-2">
+            <button onClick={() => update.mutate(form)} className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg">Salvar</button>
+            <button onClick={() => setEditing(false)} className="bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg">Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Settings() {
   const qc = useQueryClient()
   const { data: config, isLoading } = useQuery({ queryKey: ['config'], queryFn: getConfig })
 
+  // Global settings form
   const [form, setForm] = useState({
-    wa_provider: 'evolution',
-    wa_base_url: '',
-    wa_api_key: '',
-    wa_instance: 'default',
-    global_interval: 30,
-    send_start_hour: 8,
-    send_end_hour: 22,
-    ml_client_id: '',
-    ml_client_secret: '',
-    amz_tracking_id: '',
-    ml_affiliate_tool_id: '',
-    wa_group_prefix: 'Snatcher',
-    alert_phone: '',
-    use_short_links: true,
-    tg_enabled: false,
-    tg_bot_token: '',
-    tg_group_prefix: 'Snatcher',
+    global_interval: 30, send_start_hour: 8, send_end_hour: 22,
+    ml_client_id: '', ml_client_secret: '',
+    amz_tracking_id: '', ml_affiliate_tool_id: '',
+    use_short_links: true, alert_phone: '',
   })
+
   useEffect(() => {
-    if (config) {
-      setForm({
-        wa_provider: config.wa_provider || 'waha',
-        wa_base_url: config.wa_base_url || '',
-        wa_api_key: '',
-        wa_instance: config.wa_instance || 'default',
-        global_interval: config.global_interval || 30,
-        send_start_hour: config.send_start_hour ?? 8,
-        send_end_hour: config.send_end_hour ?? 22,
-        ml_client_id: config.ml_client_id || '',
-        ml_client_secret: '',
-        amz_tracking_id: config.amz_tracking_id || '',
-        ml_affiliate_tool_id: config.ml_affiliate_tool_id || '',
-        wa_group_prefix: config.wa_group_prefix ?? 'Snatcher',
-        alert_phone: config.alert_phone || '',
-        use_short_links: config.use_short_links ?? true,
-        tg_enabled: config.tg_enabled ?? false,
-        tg_bot_token: '',
-        tg_group_prefix: config.tg_group_prefix ?? 'Snatcher',
-      })
-    }
+    if (config) setForm({
+      global_interval: config.global_interval || 30,
+      send_start_hour: config.send_start_hour ?? 8,
+      send_end_hour: config.send_end_hour ?? 22,
+      ml_client_id: config.ml_client_id || '',
+      ml_client_secret: '',
+      amz_tracking_id: config.amz_tracking_id || '',
+      ml_affiliate_tool_id: config.ml_affiliate_tool_id || '',
+      use_short_links: config.use_short_links ?? true,
+      alert_phone: config.alert_phone || '',
+    })
   }, [config])
 
   const save = useMutation({ mutationFn: updateConfig })
-  const test = useMutation({ mutationFn: testWA })
-  const testTgMutation = useMutation({ mutationFn: testTG })
-
-  // WAHA status — poll a cada 5s se não WORKING
-  const { data: waStatus } = useQuery({
-    queryKey: ['waStatus'],
-    queryFn: getWAStatus,
-    refetchInterval: 5000,
-  })
-
-  // Telegram status
-  const { data: tgStatus } = useQuery({
-    queryKey: ['tgStatus'],
-    queryFn: getTGStatus,
-    refetchInterval: 5000,
-  })
-
-
-  const startSession = useMutation({
-    mutationFn: startWASession,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['waStatus'] }),
-  })
-
-  const logout = useMutation({
-    mutationFn: logoutWASession,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['waStatus'] })
-      qc.invalidateQueries({ queryKey: ['waGroups'] })
-    },
-  })
-
   const set = (f) => (e) => setForm(v => ({ ...v, [f]: e.target.value }))
+
+  // Multi-account
+  const { data: waAccounts = [] } = useQuery({ queryKey: ['waAccounts'], queryFn: getWAAccounts, retry: false })
+  const { data: tgAccounts = [] } = useQuery({ queryKey: ['tgAccounts'], queryFn: getTGAccounts, retry: false })
+
+  const [showNewWA, setShowNewWA] = useState(false)
+  const [showNewTG, setShowNewTG] = useState(false)
+  const [newWA, setNewWA] = useState({ name: '', base_url: '', api_key: '', instance: 'default' })
+  const [newTG, setNewTG] = useState({ name: '', bot_token: '' })
+
+  const createWA = useMutation({
+    mutationFn: createWAAccount,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waAccounts'] }); setShowNewWA(false); setNewWA({ name: '', base_url: '', api_key: '', instance: 'default' }) },
+  })
+  const createTG = useMutation({
+    mutationFn: createTGAccount,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tgAccounts'] }); setShowNewTG(false); setNewTG({ name: '', bot_token: '' }) },
+  })
 
   const submit = (e) => {
     e.preventDefault()
     save.mutate({
-      ...form,
       global_interval: parseInt(form.global_interval),
       send_start_hour: parseInt(form.send_start_hour),
       send_end_hour: parseInt(form.send_end_hour),
       ml_client_id: form.ml_client_id || undefined,
       ml_client_secret: form.ml_client_secret || undefined,
-      wa_api_key: form.wa_api_key || undefined,
       amz_tracking_id: form.amz_tracking_id || undefined,
       ml_affiliate_tool_id: form.ml_affiliate_tool_id || undefined,
-      wa_group_prefix: form.wa_group_prefix || null,
       alert_phone: form.alert_phone || null,
-      tg_bot_token: form.tg_bot_token || undefined,
-      tg_group_prefix: form.tg_group_prefix || null,
     })
   }
-
-  const field = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors font-mono text-sm'
-  const label = 'block text-sm font-medium text-gray-300 mb-1.5'
-
-  const statusColor = {
-    WORKING: 'bg-green-900 text-green-300',
-    SCAN_QR_CODE: 'bg-yellow-900 text-yellow-300',
-    STARTING: 'bg-blue-900 text-blue-300',
-    STOPPED: 'bg-gray-800 text-gray-400',
-    FAILED: 'bg-red-900 text-red-300',
-  }[waStatus?.status] || 'bg-gray-800 text-gray-500'
 
   if (isLoading) return <div className="text-center text-gray-400 py-16">Carregando...</div>
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-2">Configurações</h1>
-      <p className="text-gray-400 text-sm mb-8">Configure o WhatsApp, scrapers e intervalo de scan.</p>
+      <h1 className="text-2xl font-bold text-white mb-6">Configuracoes</h1>
 
+      {/* ── WhatsApp Accounts ─── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-white">📱 WhatsApp</h2>
+          <button onClick={() => setShowNewWA(s => !s)} className="text-xs text-green-400 hover:text-green-300">+ Conta</button>
+        </div>
+        <div className="space-y-3">
+          {waAccounts.map(a => <WAAccountCard key={a.id} account={a} />)}
+          {waAccounts.length === 0 && <p className="text-xs text-gray-600">Nenhuma conta WA. Adicione uma acima.</p>}
+        </div>
+        {showNewWA && (
+          <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
+            <input className={field} placeholder="Nome (ex: Principal)" value={newWA.name} onChange={e => setNewWA(f => ({ ...f, name: e.target.value }))} />
+            <input className={field} placeholder="URL (http://evolution:8080)" value={newWA.base_url} onChange={e => setNewWA(f => ({ ...f, base_url: e.target.value }))} />
+            <input className={field} type="password" placeholder="API Key" value={newWA.api_key} onChange={e => setNewWA(f => ({ ...f, api_key: e.target.value }))} />
+            <input className={field} placeholder="Instance (default)" value={newWA.instance} onChange={e => setNewWA(f => ({ ...f, instance: e.target.value }))} />
+            <button onClick={() => createWA.mutate(newWA)} disabled={!newWA.name.trim() || !newWA.base_url.trim()}
+              className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg">Criar</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Telegram Accounts ─── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-white">🤖 Telegram</h2>
+          <button onClick={() => setShowNewTG(s => !s)} className="text-xs text-green-400 hover:text-green-300">+ Bot</button>
+        </div>
+        <div className="space-y-3">
+          {tgAccounts.map(a => <TGAccountCard key={a.id} account={a} />)}
+          {tgAccounts.length === 0 && <p className="text-xs text-gray-600">Nenhum bot TG. Adicione um acima.</p>}
+        </div>
+        {showNewTG && (
+          <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
+            <input className={field} placeholder="Nome (ex: Bot Principal)" value={newTG.name} onChange={e => setNewTG(f => ({ ...f, name: e.target.value }))} />
+            <input className={field} type="password" placeholder="Bot Token (123456:ABC...)" value={newTG.bot_token} onChange={e => setNewTG(f => ({ ...f, bot_token: e.target.value }))} />
+            <button onClick={() => createTG.mutate(newTG)} disabled={!newTG.name.trim()}
+              className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg">Criar</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Mercado Livre API ─── */}
       <form onSubmit={submit} className="space-y-5">
-
-        {/* ── Evolution API status ── */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white">📱 WhatsApp</h2>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                waStatus?.status === 'ERROR' || !waStatus?.status
-                  ? 'bg-red-900 text-red-300'
-                  : 'bg-green-900 text-green-300'
-              }`}>
-                Evolution {waStatus?.status === 'ERROR' || !waStatus?.status ? 'offline' : 'online'}
-              </span>
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColor}`}>
-                {waStatus?.status || '…'}
-              </span>
-            </div>
-          </div>
-
-          {/* QR iframe quando SCAN_QR_CODE */}
-          {/* QR code — mostrado em SCAN_QR_CODE ou após iniciar sessão em STOPPED */}
-          {(waStatus?.status === 'SCAN_QR_CODE' || waStatus?.status === 'STARTING') && (
-            <div>
-              <p className="text-xs text-yellow-400 mb-2">Escaneie o QR com o WhatsApp →</p>
-              <iframe src="/api/config/wa/qr"
-                className="w-full rounded-xl border-0 bg-black"
-                style={{ height: 700 }} />
-            </div>
-          )}
-
-          {/* Botão iniciar sessão */}
-          {(waStatus?.status === 'STOPPED' || waStatus?.status === 'ERROR' || !waStatus?.status) && (
-            <button type="button" onClick={() => startSession.mutate()}
-              disabled={startSession.isPending}
-              className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm">
-              {startSession.isPending ? '⏳ Criando instância...' : '▶ Iniciar sessão'}
-            </button>
-          )}
-
-          {/* Conectado */}
-          {waStatus?.status === 'WORKING' && (
-            <>
-              <button type="button"
-                onClick={() => { if (window.confirm('Desconectar o WhatsApp?')) logout.mutate() }}
-                disabled={logout.isPending}
-                className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors">
-                {logout.isPending ? '⏳ Desconectando...' : '🚪 Desconectar WhatsApp'}
-              </button>
-              <div className="pt-2 border-t border-gray-800">
-                <a href="/admin/whatsapp" className="text-xs text-green-400 hover:text-green-300 transition-colors">
-                  📱 Gerenciar grupos WhatsApp →
-                </a>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* ── Telegram ─────────────────────────────────────────────── */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white">🤖 Telegram</h2>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                tgStatus?.configured && tgStatus?.enabled
-                  ? 'bg-green-900 text-green-300'
-                  : 'bg-gray-800 text-gray-400'
-              }`}>
-                {tgStatus?.configured ? (tgStatus?.enabled ? '✓ Ativo' : '✗ Desabilitado') : 'Não configurado'}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label className={label}>Bot Token</label>
-            <input
-              className={field}
-              type="password"
-              value={form.tg_bot_token}
-              onChange={set('tg_bot_token')}
-              placeholder="123456:ABC..."
-            />
-            <p className="text-xs text-gray-600 mt-1">Crie um bot em @BotFather no Telegram e copie o token aqui.</p>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-300">Habilitar Telegram</label>
-              <p className="text-xs text-gray-600 mt-0.5">Ativa envio de mensagens para grupos Telegram</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setForm(f => ({ ...f, tg_enabled: !f.tg_enabled }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                form.tg_enabled ? 'bg-green-600' : 'bg-gray-700'
-              }`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                form.tg_enabled ? 'translate-x-6' : 'translate-x-1'
-              }`} />
-            </button>
-          </div>
-
-          {form.tg_enabled && (
-            <div>
-              <label className={label}>Prefixo dos grupos</label>
-              <input
-                className={field}
-                value={form.tg_group_prefix}
-                onChange={set('tg_group_prefix')}
-                placeholder="Snatcher"
-              />
-              <p className="text-xs text-gray-600 mt-1">Grupos Telegram serão renomeados com este prefixo.</p>
-            </div>
-          )}
-
-          {form.tg_bot_token && (
-            <button
-              type="button"
-              onClick={() => testTgMutation.mutate()}
-              disabled={testTgMutation.isPending}
-              className="w-full bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm py-2 rounded-lg transition-colors"
-            >
-              {testTgMutation.isPending ? '⏳ Testando...' : '🧪 Testar token'}
-            </button>
-          )}
-
-          {testTgMutation.isSuccess && (
-            <div className="bg-green-900 bg-opacity-30 border border-green-800 rounded-lg p-3">
-              <p className="text-xs text-green-300">✓ Token válido!</p>
-              <p className="text-xs text-green-400 mt-1">Bot: @{testTgMutation.data?.me?.username}</p>
-            </div>
-          )}
-          {testTgMutation.isError && (
-            <p className="text-xs text-red-400">✗ Token inválido: {testTgMutation.error?.response?.data?.detail}</p>
-          )}
-
-          {form.tg_enabled && tgStatus?.configured && (
-            <div className="pt-2 border-t border-gray-800">
-              <a href="/admin/telegram" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                🤖 Gerenciar grupos Telegram →
-              </a>
-            </div>
-          )}
-        </div>
-
-        {/* ── ML API ──────────────────────────────────────────────── */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
           <h2 className="text-base font-semibold text-white">Mercado Livre API</h2>
-          <p className="text-xs text-gray-500">
-            Opcional. Cadastre um app em{' '}
-            <span className="text-green-400">developers.mercadolivre.com.br</span>{' '}
-            para usar a API oficial (5000 req/dia). Sem credenciais, usa scraping HTML.
-          </p>
+          <p className="text-xs text-gray-500">Opcional. Sem credenciais, usa scraping HTML.</p>
           <div>
             <label className={label}>Client ID</label>
             <input className={field} value={form.ml_client_id} onChange={set('ml_client_id')} placeholder="1234567890" />
           </div>
           <div>
-            <label className={label}>Client Secret {config?.ml_client_id ? '(configurado — deixe em branco para manter)' : ''}</label>
-            <input className={field} type="password" value={form.ml_client_secret} onChange={set('ml_client_secret')} placeholder="••••••••" />
+            <label className={label}>Client Secret</label>
+            <input className={field} type="password" value={form.ml_client_secret} onChange={set('ml_client_secret')} placeholder="••••••" />
           </div>
         </div>
 
-        {/* ── Afiliados ────────────────────────────────────────────── */}
+        {/* ── Afiliados ─── */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
           <h2 className="text-base font-semibold text-white">Afiliados</h2>
-          <p className="text-xs text-gray-500">Links enviados no WA incluirão seu ID de afiliado automaticamente.</p>
           <div>
-            <label className={label}>Amazon Associates — Tag</label>
+            <label className={label}>Amazon Associates Tag</label>
             <input className={field} value={form.amz_tracking_id} onChange={set('amz_tracking_id')} placeholder="meublog-20" />
           </div>
           <div>
-            <label className={label}>Mercado Livre Afiliados — Tool ID</label>
+            <label className={label}>ML Afiliados Tool ID</label>
             <input className={field} value={form.ml_affiliate_tool_id} onChange={set('ml_affiliate_tool_id')} placeholder="64838818" />
           </div>
         </div>
 
-        {/* ── Short Links / Redirect ─────────────────────────────── */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+        {/* ── Short Links ─── */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-white">Short Links com Tracking</h2>
-              <p className="text-xs text-gray-500 mt-1">
-                {form.use_short_links
-                  ? 'Links passam pelo redirect com tracking de cliques + GA4'
-                  : 'Links diretos para Amazon/ML (sem tracking)'}
-              </p>
+              <h2 className="text-base font-semibold text-white">Short Links</h2>
+              <p className="text-xs text-gray-500 mt-1">{form.use_short_links ? 'Redirect com tracking' : 'Links diretos'}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm(f => ({ ...f, use_short_links: !f.use_short_links }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                form.use_short_links ? 'bg-green-600' : 'bg-gray-700'
-              }`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                form.use_short_links ? 'translate-x-6' : 'translate-x-1'
-              }`} />
+            <button type="button" onClick={() => setForm(f => ({ ...f, use_short_links: !f.use_short_links }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.use_short_links ? 'bg-green-600' : 'bg-gray-700'}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.use_short_links ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </div>
         </div>
 
-        {/* ── Alertas ──────────────────────────────────────────────── */}
+        {/* ── Scan ─── */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-base font-semibold text-white">Alertas de Falha</h2>
-          <p className="text-xs text-gray-500">
-            Se um grupo falhar 3 scans consecutivos, uma mensagem WA será enviada para o número abaixo.
-          </p>
+          <h2 className="text-base font-semibold text-white">Pipeline</h2>
           <div>
-            <label className={label}>Número WA do admin</label>
-            <input
-              className={field}
-              value={form.alert_phone}
-              onChange={set('alert_phone')}
-              placeholder="5511999998888@c.us"
-            />
-            <p className="text-xs text-gray-600 mt-1">Formato: código do país + DDD + número + @c.us</p>
-          </div>
-        </div>
-
-        {/* ── Scan ─────────────────────────────────────────────────── */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-base font-semibold text-white mb-4">Scan</h2>
-          <div>
-            <label className={label}>Intervalo global (minutos)</label>
+            <label className={label}>Intervalo (minutos)</label>
             <input className={field} type="number" min="5" max="1440" value={form.global_interval} onChange={set('global_interval')} />
-            <p className="text-xs text-gray-500 mt-1">Reinicia o scheduler ao salvar.</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={label}>Enviar WA a partir de (h)</label>
+              <label className={label}>Enviar a partir de (h)</label>
               <input className={field} type="number" min="0" max="23" value={form.send_start_hour} onChange={set('send_start_hour')} />
             </div>
             <div>
-              <label className={label}>Enviar WA até (h)</label>
+              <label className={label}>Enviar ate (h)</label>
               <input className={field} type="number" min="0" max="23" value={form.send_end_hour} onChange={set('send_end_hour')} />
             </div>
           </div>
-          <p className="text-xs text-gray-500">Fuso: America/Sao_Paulo. Scans rodam fora da janela — só envio WA é bloqueado.</p>
         </div>
 
-        {save.isSuccess && <p className="text-green-400 text-sm">✓ Configurações salvas!</p>}
-        {save.error && <p className="text-red-400 text-sm">Erro ao salvar.</p>}
+        {/* ── Alertas ─── */}
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-white">Alertas</h2>
+          <div>
+            <label className={label}>Numero WA do admin</label>
+            <input className={field} value={form.alert_phone} onChange={set('alert_phone')} placeholder="5511999998888@c.us" />
+          </div>
+        </div>
+
+        {save.isSuccess && <p className="text-green-400 text-sm">Salvo!</p>}
+        {save.isError && <p className="text-red-400 text-sm">Erro ao salvar.</p>}
 
         <button type="submit" disabled={save.isPending}
           className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors">
-          {save.isPending ? 'Salvando...' : 'Salvar configurações'}
+          {save.isPending ? 'Salvando...' : 'Salvar configuracoes'}
         </button>
       </form>
     </div>

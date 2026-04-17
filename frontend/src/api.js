@@ -116,4 +116,19 @@ export const addChannelRule = (channelId, data) => api.post(`/channels/${channel
 export const updateChannelRule = (channelId, ruleId, data) => api.put(`/channels/${channelId}/rules/${ruleId}`, data).then(r => r.data)
 export const deleteChannelRule = (channelId, ruleId) => api.delete(`/channels/${channelId}/rules/${ruleId}`)
 
+// v2 — Accounts (multi-WA/TG)
+export const getWAAccounts = () => api.get('/accounts/wa').then(r => r.data)
+export const createWAAccount = (data) => api.post('/accounts/wa', data).then(r => r.data)
+export const updateWAAccount = (id, data) => api.put(`/accounts/wa/${id}`, data).then(r => r.data)
+export const deleteWAAccount = (id) => api.delete(`/accounts/wa/${id}`)
+export const getWAAccountStatus = (id) => api.get(`/accounts/wa/${id}/status`).then(r => r.data)
+export const getWAAccountGroups = (id) => api.get(`/accounts/wa/${id}/groups`).then(r => r.data)
+export const testWAAccount = (id) => api.post(`/accounts/wa/${id}/test`).then(r => r.data)
+
+export const getTGAccounts = () => api.get('/accounts/tg').then(r => r.data)
+export const createTGAccount = (data) => api.post('/accounts/tg', data).then(r => r.data)
+export const updateTGAccount = (id, data) => api.put(`/accounts/tg/${id}`, data).then(r => r.data)
+export const deleteTGAccount = (id) => api.delete(`/accounts/tg/${id}`)
+export const testTGAccount = (id) => api.post(`/accounts/tg/${id}/test`).then(r => r.data)
+
 export default api

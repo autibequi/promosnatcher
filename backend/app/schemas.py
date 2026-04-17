@@ -145,6 +145,60 @@ class CreateWAGroupRequest(BaseModel):
     participants: list[str] = []
 
 
+# --- Multi-Account ---
+
+class WAAccountCreate(BaseModel):
+    name: str
+    provider: str = "evolution"
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    instance: Optional[str] = "default"
+    group_prefix: Optional[str] = "Snatcher"
+
+class WAAccountRead(BaseModel):
+    id: int
+    name: str
+    provider: str
+    base_url: Optional[str]
+    instance: Optional[str]
+    group_prefix: Optional[str]
+    status: str
+    active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class WAAccountUpdate(BaseModel):
+    name: Optional[str] = None
+    provider: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    instance: Optional[str] = None
+    group_prefix: Optional[str] = None
+    active: Optional[bool] = None
+
+class TGAccountCreate(BaseModel):
+    name: str
+    bot_token: Optional[str] = None
+    group_prefix: Optional[str] = "Snatcher"
+
+class TGAccountRead(BaseModel):
+    id: int
+    name: str
+    bot_username: Optional[str]
+    group_prefix: Optional[str]
+    active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class TGAccountUpdate(BaseModel):
+    name: Optional[str] = None
+    bot_token: Optional[str] = None
+    group_prefix: Optional[str] = None
+    active: Optional[bool] = None
+
+
 # ===========================================================================
 # v2 Pipeline Schemas
 # ===========================================================================
