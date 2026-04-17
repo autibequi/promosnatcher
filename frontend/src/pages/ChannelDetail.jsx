@@ -8,20 +8,24 @@ import {
   getCatalogProducts, getWAGroups, getTGChats,
 } from '../api'
 
-function TargetPicker({ field, onAdd }) {
+function TargetPicker({ field, onAdd, existingTargets = [] }) {
   const [provider, setProvider] = useState('whatsapp')
   const [chatId, setChatId] = useState('')
-  const [mode, setMode] = useState('select') // 'select' | 'manual'
+  const [mode, setMode] = useState('select')
 
   const { data: waGroups = [] } = useQuery({
     queryKey: ['waGroups'], queryFn: getWAGroups, enabled: provider === 'whatsapp', retry: false,
   })
   const { data: tgChats = [] } = useQuery({
-    queryKey: ['tgChats'], queryFn: getTGChats, enabled: provider === 'telegram', retry: false,
+    queryKey: ['tgChats'], queryFn: () => getTGChats(), enabled: provider === 'telegram', retry: false,
   })
 
-  const groups = provider === 'whatsapp' ? waGroups : tgChats
-  const hasGroups = groups.length > 0
+  // Filtrar grupos já adicionados como targets
+  const existingIds = new Set(existingTargets.filter(t => t.provider === provider).map(t => t.chat_id))
+  const availableWA = waGroups.filter(g => !existingIds.has(g.id))
+  const availableTG = tgChats.filter(c => !existingIds.has(c.chat_id))
+  const available = provider === 'whatsapp' ? availableWA : availableTG
+  const hasGroups = available.length > 0
 
   return (
     <div className="mt-3 space-y-2">
@@ -32,23 +36,32 @@ function TargetPicker({ field, onAdd }) {
         </select>
         {hasGroups && mode === 'select' ? (
           <select className={`${field} flex-1`} value={chatId} onChange={e => setChatId(e.target.value)}>
-            <option value="">— Selecionar grupo —</option>
+            <option value="">— Selecionar grupo ({available.length}) —</option>
             {provider === 'whatsapp'
-              ? waGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)
-              : tgChats.map(c => <option key={c.chat_id} value={c.chat_id}>{c.title || c.chat_id}</option>)
+              ? availableWA.map(g => <option key={g.id} value={g.id}>{g.name}</option>)
+              : availableTG.map(c => <option key={c.chat_id} value={c.chat_id}>{c.title || c.chat_id}</option>)
             }
           </select>
         ) : (
           <input className={`${field} flex-1`} placeholder="Chat ID manual" value={chatId} onChange={e => setChatId(e.target.value)} />
         )}
-        <button onClick={() => { if (chatId) onAdd({ provider, chat_id: chatId }); setChatId('') }} disabled={!chatId}
+        <button onClick={() => { if (chatId) { onAdd({ provider, chat_id: chatId }); setChatId('') } }} disabled={!chatId}
           className="bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg transition-colors">+</button>
       </div>
-      {hasGroups && (
-        <button onClick={() => setMode(m => m === 'select' ? 'manual' : 'select')} className="text-xs text-gray-500 hover:text-gray-300">
-          {mode === 'select' ? 'Digitar ID manualmente' : 'Selecionar da lista'}
-        </button>
-      )}
+      <div className="flex gap-3">
+        {hasGroups && (
+          <button onClick={() => setMode(m => m === 'select' ? 'manual' : 'select')} className="text-xs text-gray-500 hover:text-gray-300">
+            {mode === 'select' ? 'Digitar ID manualmente' : 'Selecionar da lista'}
+          </button>
+        )}
+        {!hasGroups && mode === 'select' && (
+          <p className="text-xs text-gray-600">
+            {provider === 'whatsapp' ? 'Evolution offline ou sem grupos' : 'Nenhum chat TG disponivel'}
+            {' — '}
+            <button onClick={() => setMode('manual')} className="text-blue-400 hover:text-blue-300">digitar ID</button>
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -237,7 +250,7 @@ export default function ChannelDetail() {
             ))}
             {(!channel.targets || channel.targets.length === 0) && <p className="text-xs text-gray-600">Nenhum target configurado</p>}
           </div>
-          {showAddTarget && <TargetPicker field={field} onAdd={(data) => addTarget.mutate(data)} />}
+          {showAddTarget && <TargetPicker field={field} onAdd={(data) => addTarget.mutate(data)} existingTargets={channel.targets || []} />}
         </div>
 
         {/* Rules */}
