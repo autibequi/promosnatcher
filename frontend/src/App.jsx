@@ -32,6 +32,7 @@ const CrawlerDetail = lazy(() => import('./pages/CrawlerDetail'))
 const Catalog = lazy(() => import('./pages/Catalog'))
 const Channels = lazy(() => import('./pages/Channels'))
 const ChannelDetail = lazy(() => import('./pages/ChannelDetail'))
+const Groups = lazy(() => import('./pages/Groups'))
 
 function AdminNav({ onLogout }) {
   const link = ({ isActive }) =>
@@ -47,6 +48,7 @@ function AdminNav({ onLogout }) {
         <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
         <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
         <NavLink to="/admin/channels" className={link}>Canais</NavLink>
+        <NavLink to="/admin/groups" className={link}>Grupos</NavLink>
         <NavLink to="/admin/settings" className={link}>Config</NavLink>
         <button onClick={onLogout}
           className="ml-auto text-gray-500 hover:text-gray-300 text-sm px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">
@@ -89,6 +91,16 @@ export default function App() {
           <RequireAuth>
             <AdminNav onLogout={logout} />
             <main className="max-w-6xl mx-auto px-4 py-8"><Dashboard /></main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/groups" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <Groups />
+              </Suspense>
+            </main>
           </RequireAuth>
         } />
         <Route path="/admin/settings" element={
