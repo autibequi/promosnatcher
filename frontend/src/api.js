@@ -117,6 +117,7 @@ export const updateChannelRule = (channelId, ruleId, data) => api.put(`/channels
 export const deleteChannelRule = (channelId, ruleId) => api.delete(`/channels/${channelId}/rules/${ruleId}`)
 
 // v2 — Accounts (multi-WA/TG)
+export const getWAHealth = () => api.get('/accounts/wa/health').then(r => r.data)
 export const getWAAccounts = () => api.get('/accounts/wa').then(r => r.data)
 export const createWAAccount = (data) => api.post('/accounts/wa', data).then(r => r.data)
 export const updateWAAccount = (id, data) => api.put(`/accounts/wa/${id}`, data).then(r => r.data)

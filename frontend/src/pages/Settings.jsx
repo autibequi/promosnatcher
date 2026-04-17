@@ -2,10 +2,23 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getConfig, updateConfig,
-  getWAAccounts, createWAAccount, updateWAAccount, deleteWAAccount, getWAAccountStatus, testWAAccount,
+  getWAHealth, getWAAccounts, createWAAccount, updateWAAccount, deleteWAAccount, getWAAccountStatus, testWAAccount,
   startWAAccountSession, logoutWAAccount,
   getTGAccounts, createTGAccount, updateTGAccount, deleteTGAccount, testTGAccount,
 } from '../api'
+
+function EvolutionBadge() {
+  const { data: health } = useQuery({
+    queryKey: ['waHealth'], queryFn: getWAHealth, refetchInterval: 15_000, retry: false,
+  })
+  if (!health) return null
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${health.online ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+      Evolution {health.online ? 'online' : 'offline'}
+      {health.online && health.instances > 0 && ` (${health.instances})`}
+    </span>
+  )
+}
 
 const field = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors'
 const label = 'block text-sm font-medium text-gray-300 mb-1'
@@ -75,10 +88,18 @@ function WAAccountCard({ account }) {
 
       {/* Botão iniciar sessão — quando STOPPED/ERROR/UNKNOWN */}
       {(waStatus === 'STOPPED' || waStatus === 'ERROR' || waStatus === 'UNKNOWN' || !status) && account.base_url && (
-        <button onClick={() => startSession.mutate()} disabled={startSession.isPending}
-          className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm mb-3">
-          {startSession.isPending ? '⏳ Criando instancia...' : '▶ Iniciar sessao'}
-        </button>
+        <div className="mb-3">
+          <button onClick={() => startSession.mutate()} disabled={startSession.isPending}
+            className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm">
+            {startSession.isPending ? '⏳ Criando instancia...' : '▶ Iniciar sessao'}
+          </button>
+          {startSession.isError && (
+            <p className="text-xs text-red-400 mt-1">Falha ao iniciar: {startSession.error?.response?.data?.detail || 'Evolution API pode estar offline'}</p>
+          )}
+          {startSession.isSuccess && waStatus === 'STOPPED' && (
+            <p className="text-xs text-yellow-400 mt-1">Instancia criada — aguardando QR code...</p>
+          )}
+        </div>
       )}
 
       {/* Conectado — botão logout */}
@@ -234,7 +255,10 @@ export default function Settings() {
       {/* ── WhatsApp Accounts ─── */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-white">📱 WhatsApp</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold text-white">📱 WhatsApp</h2>
+            <EvolutionBadge />
+          </div>
           <button onClick={() => setShowNewWA(s => !s)} className="text-xs text-green-400 hover:text-green-300">+ Conta</button>
         </div>
         <div className="space-y-3">

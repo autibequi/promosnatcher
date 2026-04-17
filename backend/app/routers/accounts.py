@@ -19,6 +19,28 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 # --- WhatsApp Accounts ---
 
+@router.get("/wa/health")
+async def wa_evolution_health(session: Session = Depends(get_session)):
+    """Checa se a Evolution API está acessível."""
+    import httpx
+    # Tenta pegar URL da primeira conta ativa ou do AppConfig
+    account = session.exec(select(WAAccount).where(WAAccount.active == True)).first()
+    base_url = account.base_url if account else None
+    if not base_url:
+        from ..models import AppConfig
+        config = session.get(AppConfig, 1)
+        base_url = config.wa_base_url if config else None
+    if not base_url:
+        return {"online": False, "error": "Nenhuma URL configurada"}
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(f"{base_url.rstrip('/')}/instance/fetchInstances",
+                           headers={"apikey": account.api_key or ""} if account else {})
+        return {"online": r.status_code == 200, "url": base_url, "instances": len(r.json()) if r.status_code == 200 else 0}
+    except Exception as e:
+        return {"online": False, "url": base_url, "error": str(e)[:100]}
+
+
 @router.get("/wa", response_model=list[WAAccountRead])
 def list_wa_accounts(session: Session = Depends(get_session)):
     return session.exec(select(WAAccount).order_by(WAAccount.created_at.desc())).all()
