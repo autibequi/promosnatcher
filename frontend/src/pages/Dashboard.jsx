@@ -11,7 +11,7 @@ const safeFetch = (fn) => async () => {
   try { return await fn() } catch { return null }
 }
 
-function StatCard({ label, value, icon, link, color = 'text-white' }) {
+function StatCard({ label, value, icon, link, color = 'text-white', desc }) {
   const inner = (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors">
       <p className="text-gray-400 text-xs uppercase tracking-wider">{label}</p>
@@ -19,6 +19,7 @@ function StatCard({ label, value, icon, link, color = 'text-white' }) {
         <span className="text-3xl">{icon}</span>
         <span className={`text-2xl font-bold ${color}`}>{value ?? '-'}</span>
       </div>
+      {desc && <p className="text-xs text-gray-600 mt-2">{desc}</p>}
     </div>
   )
   return link ? <Link to={link}>{inner}</Link> : inner
@@ -71,9 +72,9 @@ export default function Dashboard() {
 
       {/* Pipeline stats + Analytics stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <StatCard label="Crawlers" value={termCount} icon="🔍" link="/admin/crawlers" color="text-blue-400" />
-        <StatCard label="Catalogo" value={catalogCount} icon="📦" link="/admin/catalog" color="text-green-400" />
-        <StatCard label="Canais" value={channelCount} icon="📢" link="/admin/channels" color="text-purple-400" />
+        <StatCard label="Crawlers" value={termCount} icon="🔍" link="/admin/crawlers" color="text-blue-400" desc="Termos de busca e resultados brutos" />
+        <StatCard label="Catalogo" value={catalogCount} icon="📦" link="/admin/catalog" color="text-green-400" desc="Produtos agrupados e variantes" />
+        <StatCard label="Canais" value={channelCount} icon="📢" link="/admin/channels" color="text-purple-400" desc="Targets WA/TG e regras de envio" />
         <StatCard label="Cliques" value={summary?.total?.toLocaleString() || 0} icon="👆" color="text-yellow-400" />
         <StatCard label="Unicos" value={summary?.unique?.toLocaleString() || 0} icon="👤" color="text-cyan-400" />
         <StatCard label="Scheduler" value={scanStatus?.running ? 'On' : 'Off'} icon="⏰"
@@ -164,21 +165,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Quick links */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Link to="/admin/crawlers" className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-800 transition-colors group">
-          <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Crawlers</p>
-          <p className="text-xs text-gray-500 mt-1">Termos de busca, resultados brutos, crawls manuais</p>
-        </Link>
-        <Link to="/admin/catalog" className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-green-800 transition-colors group">
-          <p className="text-sm font-medium text-white group-hover:text-green-400 transition-colors">Catalogo</p>
-          <p className="text-xs text-gray-500 mt-1">Produtos agrupados, variantes, tags, historico</p>
-        </Link>
-        <Link to="/admin/channels" className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-purple-800 transition-colors group">
-          <p className="text-sm font-medium text-white group-hover:text-purple-400 transition-colors">Canais</p>
-          <p className="text-xs text-gray-500 mt-1">Targets WA/TG, regras de envio</p>
-        </Link>
-      </div>
     </div>
   )
 }
