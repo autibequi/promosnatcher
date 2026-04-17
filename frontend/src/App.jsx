@@ -28,8 +28,10 @@ import Login from './pages/Login'
 
 // v2 pages — lazy load para nao crashar o app se api.js nao tiver os exports
 const Crawlers = lazy(() => import('./pages/Crawlers'))
+const CrawlerDetail = lazy(() => import('./pages/CrawlerDetail'))
 const Catalog = lazy(() => import('./pages/Catalog'))
 const Channels = lazy(() => import('./pages/Channels'))
+const ChannelDetail = lazy(() => import('./pages/ChannelDetail'))
 
 function AdminNav({ onLogout }) {
   const link = ({ isActive }) =>
@@ -105,6 +107,16 @@ export default function App() {
             </main>
           </RequireAuth>
         } />
+        <Route path="/admin/crawlers/:id" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <CrawlerDetail />
+              </Suspense>
+            </main>
+          </RequireAuth>
+        } />
         <Route path="/admin/catalog" element={
           <RequireAuth>
             <AdminNav onLogout={logout} />
@@ -121,6 +133,16 @@ export default function App() {
             <main className="max-w-6xl mx-auto px-4 py-8">
               <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
                 <Channels />
+              </Suspense>
+            </main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/channels/:id" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <ChannelDetail />
               </Suspense>
             </main>
           </RequireAuth>
