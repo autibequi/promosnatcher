@@ -1,3 +1,12 @@
+# Dev — todo tráfego entre serviços usa a rede Docker (DNS pelos container_name).
+# Acesso pelo host: localhost:6060 (UI), :8000 (API direta), :3200 (Evolution direta).
+# Tunnel Cloudflare: COMPOSE_PROFILES=tunnel make dev
+
+networks:
+  promosnatcher_internal:
+    name: promosnatcher_internal
+    driver: bridge
+
 services:
   evolution:
     image: evoapicloud/evolution-api:v2.3.1
@@ -29,8 +38,10 @@ services:
       - evo-postgres
       - evo-redis
     restart: unless-stopped
+    networks:
+      - promosnatcher_internal
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -46,6 +57,8 @@ services:
     volumes:
       - evo_pg_data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - promosnatcher_internal
 
   evo-redis:
     image: redis:7-alpine
@@ -54,6 +67,8 @@ services:
     volumes:
       - evo_redis_data:/data
     restart: unless-stopped
+    networks:
+      - promosnatcher_internal
 
   backend:
     build:
@@ -78,12 +93,17 @@ services:
       - AUTH_PASSWORD=${AUTH_PASSWORD}
       - AUTH_SECRET=${AUTH_SECRET}
       - AMZ_TRACKING_ID=${AMZ_TRACKING_ID:-}
-      - PUBLIC_URL=${PUBLIC_URL:-https://snatcher.autibequi.com}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:6060}
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
+    depends_on:
+      evolution:
+        condition: service_healthy
+    networks:
+      - promosnatcher_internal
 
   frontend:
     image: node:20-alpine
@@ -98,14 +118,21 @@ services:
     environment:
       - NODE_ENV=development
     restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - promosnatcher_internal
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: promo-snatcher-cloudflared
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
     restart: unless-stopped
+    profiles: [tunnel]
     depends_on:
       - frontend
+    networks:
+      - promosnatcher_internal
 
 volumes:
   evo_instances:

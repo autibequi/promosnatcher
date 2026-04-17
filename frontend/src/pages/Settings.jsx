@@ -196,7 +196,7 @@ function WAAccountCard({ account }) {
       {editing && (
         <div className="pt-3 border-t border-gray-700 space-y-2">
           <input className={field} placeholder="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <input className={field} placeholder="URL (http://evolution:8080)" value={form.base_url} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))} />
+          <input className={field} placeholder="URL (http://promo-snatcher-evolution:8080)" value={form.base_url} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))} />
           <input className={field} type="password" placeholder="API Key (deixe vazio pra manter)" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))} />
           <input className={field} placeholder="Instance" value={form.instance} onChange={e => setForm(f => ({ ...f, instance: e.target.value }))} />
           <input className={field} placeholder="Prefixo grupos" value={form.group_prefix} onChange={e => setForm(f => ({ ...f, group_prefix: e.target.value }))} />

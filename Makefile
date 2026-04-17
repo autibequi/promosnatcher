@@ -154,11 +154,12 @@ dev: ## Modo dev com hot-reload (backend uvicorn --reload + frontend vite dev)
 	@mkdir -p backend/data
 	$(COMPOSE) -f docker-compose.dev.yml up --build --remove-orphans -d
 	@echo ""
-	@echo "🔥 Dev mode — hot-reload ativo"
-	@echo "   Frontend: http://localhost:6060 (Vite HMR)"
-	@echo "   Backend:  http://localhost:8000 (uvicorn --reload)"
-	@echo "   Evolution: http://localhost:3200"
-	@echo "   Logs:     make dev-logs"
+	@echo "🔥 Dev mode — hot-reload (rede Docker interna: promosnatcher_internal)"
+	@echo "   UI (host):     http://localhost:6060  → Vite proxy /api → promo-snatcher-backend:8000"
+	@echo "   API (host):    http://localhost:8000"
+	@echo "   Evolution:     http://localhost:3200  (API interna: http://promo-snatcher-evolution:8080)"
+	@echo "   Tunnel (opt):  COMPOSE_PROFILES=tunnel + CLOUDFLARE_TOKEN no .env"
+	@echo "   Logs:          make dev-logs"
 
 dev-down: ## Para o ambiente dev
 	$(COMPOSE) -f docker-compose.dev.yml down
