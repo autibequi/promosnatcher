@@ -77,8 +77,10 @@ services:
           memory: 96m
 
   backend:
-    build: ./backend
+    image: ghcr.io/autibequi/promosnatcher-backend:latest
     container_name: promo-snatcher-backend
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     # shm_size necessário para o Chromium (Amazon scraping) não crashar no Pi
     shm_size: '128mb'
     volumes:
@@ -112,8 +114,10 @@ services:
       start_period: 60s   # Chromium ARM demora mais pra inicializar
 
   redirect:
-    build: ./redirect
+    image: ghcr.io/autibequi/promosnatcher-redirect:latest
     container_name: promo-snatcher-redirect
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - ./backend/data:/data:ro   # SQLite read-only — não compete com Python
     environment:
@@ -134,8 +138,10 @@ services:
       start_period: 5s
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/autibequi/promosnatcher-frontend:latest
     container_name: promo-snatcher-frontend
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - "${FRONTEND_PORT:-6060}:80"
     environment:
@@ -163,6 +169,22 @@ services:
       resources:
         limits:
           memory: 64m
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: promo-snatcher-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=300      # verifica a cada 5 min
+      - WATCHTOWER_CLEANUP=true           # remove imagens velhas
+      - WATCHTOWER_LABEL_ENABLE=true      # só atualiza containers com label
+      - WATCHTOWER_INCLUDE_STOPPED=false
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 32m
 
 volumes:
   evo_instances:

@@ -14,7 +14,7 @@ FRONTEND_URL := http://localhost:6060
 .DEFAULT_GOAL := help
 
 .PHONY: help setup start start-tunnel update pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
-        shell ps clean test scan status fix-network
+        shell ps clean test scan status fix-network update-all
 
 help: ## Mostra este help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*##"}{printf "\033[36m%-18s\033[0m %s\n",$$1,$$2}'
@@ -48,10 +48,11 @@ print('✓ AUTH_SECRET gerado automaticamente') if changed else None"
 	@echo "  2. Opcional (acesso externo): CLOUDFLARE_TOKEN"
 	@echo "  3. make start"
 
-start: ## Produção: rebuild + sobe (sem derrubar stack existente)
+start: ## Produção: pull imagens + sobe tudo
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	$(COMPOSE) up --build --remove-orphans -d
+	$(COMPOSE) pull --ignore-pull-failures
+	$(COMPOSE) up --remove-orphans -d
 	@echo ""
 	@echo "Stack no ar: http://$$(hostname -I | awk '{print $$1}'):$${FRONTEND_PORT:-6060}"
 	@echo "Logs: make logs  |  Status: make status"
@@ -59,21 +60,17 @@ start: ## Produção: rebuild + sobe (sem derrubar stack existente)
 start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env)
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	COMPOSE_PROFILES=tunnel $(COMPOSE) up --build --remove-orphans -d
+	COMPOSE_PROFILES=tunnel $(COMPOSE) pull --ignore-pull-failures
+	COMPOSE_PROFILES=tunnel $(COMPOSE) up --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
 
-update: ## Atualiza a aplicação: git pull + rebuild backend e frontend (Go fica cacheado)
+update: ## Atualiza: pull novas imagens + restart (Watchtower faz isso automaticamente)
 	git pull
-	$(COMPOSE) up -d --build --no-deps backend frontend
+	$(COMPOSE) pull backend frontend redirect
+	$(COMPOSE) up -d --remove-orphans
 	@echo ""
-	@echo "Atualizado. Evolution/postgres/redis/redirect continuam no ar."
-
-update-all: ## Atualiza tudo incluindo o redirect Go (lento no Pi — só se redirect/ mudou)
-	git pull
-	$(COMPOSE) up -d --build --no-deps backend redirect frontend
-	@echo ""
-	@echo "Atualizado (incluindo Go redirect)."
+	@echo "Atualizado."
 
 pi-setup: ## Raspberry Pi: instala Docker, habilita no boot e configura swap 2GB
 	@echo "=== Instalando Docker ==="

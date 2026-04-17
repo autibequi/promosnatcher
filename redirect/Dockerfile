@@ -14,9 +14,9 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux go build -mod=mod -ldflags="-s -w" -o redirect .
 
 # ---------------------------------------------------------------------------
-# Imagem final: scratch = ~6MB, zero overhead, sem shell
+# Imagem final: alpine ~11MB — permite healthcheck com wget
 # ---------------------------------------------------------------------------
-FROM scratch
+FROM alpine:3.20
 
 COPY --from=build /app/redirect /redirect
 
