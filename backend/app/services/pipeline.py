@@ -483,6 +483,12 @@ async def evaluate_channels():
 
 async def run_pipeline():
     """Executa o pipeline completo: crawl → process → evaluate."""
-    await crawl_all_terms()
-    process_crawl_results()
+    process_crawl_results()  # processa resultados pendentes antes de crawlar
+    try:
+        await asyncio.wait_for(crawl_all_terms(), timeout=300)  # 5min max
+    except asyncio.TimeoutError:
+        logger.warning("crawl_all_terms timeout — avançando para process")
+    except Exception as e:
+        logger.error(f"crawl_all_terms error: {e}")
+    process_crawl_results()  # processa os resultados novos
     await evaluate_channels()
