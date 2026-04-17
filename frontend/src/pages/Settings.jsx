@@ -8,22 +8,42 @@ import {
 } from '../api'
 
 function EvolutionBadge() {
-  const { data: health } = useQuery({
+  const { data: health, isLoading } = useQuery({
     queryKey: ['waHealth'], queryFn: getWAHealth, refetchInterval: 15_000, retry: false,
   })
+  const [failCount, setFailCount] = useState(0)
+
+  useEffect(() => {
+    if (health) setFailCount(n => health.online ? 0 : n + 1)
+  }, [health])
+
+  if (isLoading && !health) return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-900 text-yellow-300 animate-pulse">
+      Evolution verificando...
+    </span>
+  )
   if (!health) return null
-  const offlineHint =
-    !health.online &&
-    (health.error ||
-      (health.status != null && `HTTP ${health.status}`) ||
-      (health.url && `nao alcancou ${health.url} a partir do backend`))
+
+  // Amarelo nas primeiras 2 falhas (~30s) — provavelmente ainda subindo
+  const starting = !health.online && failCount < 3
+  const tooltip = health.online
+    ? (health.url || undefined)
+    : (health.error || (health.status != null && `HTTP ${health.status}`) || (health.url && `não alcançou ${health.url} a partir do backend`)) || undefined
+
+  const cls = health.online
+    ? 'bg-green-900 text-green-300'
+    : starting
+      ? 'bg-yellow-900 text-yellow-300 animate-pulse'
+      : 'bg-red-900 text-red-300'
+
+  const label = health.online
+    ? `Evolution online${health.instances > 0 ? ` (${health.instances})` : ''}`
+    : starting ? 'Evolution carregando...'
+    : 'Evolution offline'
+
   return (
-    <span
-      title={offlineHint || (health.url ? `${health.url}` : undefined)}
-      className={`text-xs px-2 py-0.5 rounded-full font-medium ${health.online ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}
-    >
-      Evolution {health.online ? 'online' : 'offline'}
-      {health.online && health.instances > 0 && ` (${health.instances})`}
+    <span title={tooltip} className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>
+      {label}
     </span>
   )
 }
