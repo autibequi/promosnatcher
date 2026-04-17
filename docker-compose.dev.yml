@@ -97,11 +97,12 @@ services:
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
     depends_on:
       evolution:
-        condition: service_healthy
+        condition: service_started
     networks:
       - promosnatcher_internal
 
