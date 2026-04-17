@@ -64,11 +64,14 @@ export default function Groups() {
       {connectedAccounts.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
           <h2 className="text-sm font-medium text-gray-300 mb-3">Criar grupo WhatsApp</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <select className={field} value={selectedAccount || connectedAccounts[0]?.id}
               onChange={e => setSelectedAccount(+e.target.value)}>
               {connectedAccounts.map(a => <option key={a.id} value={a.id}>📱 {a.name}</option>)}
             </select>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-2 rounded-lg border border-gray-700 whitespace-nowrap" title="Prefixo configurado na conta">
+              {(connectedAccounts.find(a => a.id === (selectedAccount || connectedAccounts[0]?.id))?.group_prefix || 'Snatcher')} -
+            </span>
             <input className={`${field} flex-1`} placeholder="Nome do grupo" value={newGroupName}
               onChange={e => setNewGroupName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && newGroupName.trim() && createGroup.mutate({
