@@ -124,6 +124,8 @@ export const deleteWAAccount = (id) => api.delete(`/accounts/wa/${id}`)
 export const getWAAccountStatus = (id) => api.get(`/accounts/wa/${id}/status`).then(r => r.data)
 export const getWAAccountGroups = (id) => api.get(`/accounts/wa/${id}/groups`).then(r => r.data)
 export const testWAAccount = (id) => api.post(`/accounts/wa/${id}/test`).then(r => r.data)
+export const startWAAccountSession = (id) => api.post(`/accounts/wa/${id}/session/start`).then(r => r.data)
+export const logoutWAAccount = (id) => api.post(`/accounts/wa/${id}/session/logout`).then(r => r.data)
 
 export const getTGAccounts = () => api.get('/accounts/tg').then(r => r.data)
 export const createTGAccount = (data) => api.post('/accounts/tg', data).then(r => r.data)

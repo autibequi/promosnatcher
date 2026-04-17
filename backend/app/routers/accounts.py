@@ -1,6 +1,7 @@
 """CRUD para contas WhatsApp e Telegram (multi-account)."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 
 from ..database import get_session
@@ -79,6 +80,72 @@ async def wa_account_status(account_id: int, session: Session = Depends(get_sess
         session.add(account)
         session.commit()
     return status
+
+
+@router.get("/wa/{account_id}/qr", response_class=HTMLResponse)
+async def wa_account_qr(account_id: int, session: Session = Depends(get_session)):
+    """QR code HTML para conectar WhatsApp desta conta."""
+    account = session.get(WAAccount, account_id)
+    if not account:
+        raise HTTPException(404, "WA account not found")
+    adapter = get_adapter(account.provider, account.base_url or "", account.api_key or "", account.instance or "")
+    if not adapter:
+        raise HTTPException(400, "WA não configurado")
+
+    status_data = await adapter.get_session_status()
+    wa_status = status_data.get("status", "UNKNOWN")
+
+    if wa_status == "WORKING":
+        return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+        <style>body{{font-family:sans-serif;text-align:center;padding:20px;background:#1a1a2e;color:#eee}}</style>
+        </head><body><h3>✅ Conectado</h3><p>{account.name}</p>
+        <script>setTimeout(()=>location.reload(),30000)</script></body></html>""")
+
+    qr = await adapter.get_qr_code()
+    if qr:
+        return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+        <style>body{{font-family:sans-serif;text-align:center;padding:20px;background:#1a1a2e;color:#eee}}
+        img{{border:6px solid white;border-radius:8px;width:300px;max-width:90vw}}</style>
+        </head><body>
+        <p style="margin:0 0 12px;font-size:13px">📱 Escaneie com WhatsApp</p>
+        <img src="{qr}" alt="QR" />
+        <p style="color:#666;font-size:11px;margin-top:8px">Recarrega em 8s</p>
+        <script>setTimeout(()=>location.reload(),8000)</script></body></html>""")
+
+    return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>body{{font-family:sans-serif;text-align:center;padding:20px;background:#1a1a2e;color:#eee}}</style>
+    </head><body><p>Status: {wa_status}</p><p style="color:#666">Aguardando QR...</p>
+    <script>setTimeout(()=>location.reload(),5000)</script></body></html>""")
+
+
+@router.post("/wa/{account_id}/session/start")
+async def wa_account_start_session(account_id: int, session: Session = Depends(get_session)):
+    """Inicia sessão WA desta conta."""
+    account = session.get(WAAccount, account_id)
+    if not account:
+        raise HTTPException(404, "WA account not found")
+    adapter = get_adapter(account.provider, account.base_url or "", account.api_key or "", account.instance or "")
+    if not adapter:
+        raise HTTPException(400, "WA não configurado")
+    ok = await adapter.start_session()
+    return {"started": ok}
+
+
+@router.post("/wa/{account_id}/session/logout")
+async def wa_account_logout(account_id: int, session: Session = Depends(get_session)):
+    """Desconecta WhatsApp desta conta."""
+    account = session.get(WAAccount, account_id)
+    if not account:
+        raise HTTPException(404, "WA account not found")
+    adapter = get_adapter(account.provider, account.base_url or "", account.api_key or "", account.instance or "")
+    if not adapter:
+        raise HTTPException(400, "WA não configurado")
+    ok = await adapter.logout_session()
+    if ok:
+        account.status = "disconnected"
+        session.add(account)
+        session.commit()
+    return {"logged_out": ok}
 
 
 @router.get("/wa/{account_id}/groups")

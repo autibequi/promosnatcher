@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getConfig, updateConfig,
   getWAAccounts, createWAAccount, updateWAAccount, deleteWAAccount, getWAAccountStatus, testWAAccount,
+  startWAAccountSession, logoutWAAccount,
   getTGAccounts, createTGAccount, updateTGAccount, deleteTGAccount, testTGAccount,
 } from '../api'
 
@@ -30,7 +31,14 @@ function WAAccountCard({ account }) {
     mutationFn: () => deleteWAAccount(account.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['waAccounts'] }),
   })
-  const test = useMutation({ mutationFn: () => testWAAccount(account.id) })
+  const startSession = useMutation({
+    mutationFn: () => startWAAccountSession(account.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['waStatus', account.id] }),
+  })
+  const logout = useMutation({
+    mutationFn: () => logoutWAAccount(account.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waStatus', account.id] }); qc.invalidateQueries({ queryKey: ['waAccounts'] }) },
+  })
 
   const waStatus = status?.status || 'UNKNOWN'
   const statusColor = {
@@ -41,29 +49,57 @@ function WAAccountCard({ account }) {
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
+      {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-white">{account.name}</p>
           <span className={`${badge} ${statusColor}`}>{waStatus}</span>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => test.mutate()} className="text-xs text-gray-400 hover:text-green-400">🧪</button>
           <button onClick={() => { setEditing(e => !e); setForm({ name: account.name, base_url: account.base_url || '', api_key: '', instance: account.instance || '', group_prefix: account.group_prefix || '' }) }}
             className="text-xs text-gray-400 hover:text-white">✏️</button>
           <button onClick={() => { if (confirm(`Remover "${account.name}"?`)) del.mutate() }}
             className="text-xs text-gray-400 hover:text-red-400">🗑️</button>
         </div>
       </div>
-      <p className="text-xs text-gray-500">{account.provider} | {account.instance} | {account.base_url || 'sem URL'}</p>
-      {test.isSuccess && <p className="text-xs text-green-400 mt-1">Conectado!</p>}
-      {test.isError && <p className="text-xs text-red-400 mt-1">Falha na conexão</p>}
+      <p className="text-xs text-gray-500 mb-3">{account.provider} | {account.instance} | {account.base_url || 'sem URL'}</p>
 
+      {/* QR Code — quando SCAN_QR_CODE ou STARTING */}
+      {(waStatus === 'SCAN_QR_CODE' || waStatus === 'STARTING') && (
+        <iframe
+          src={`/api/accounts/wa/${account.id}/qr`}
+          className="w-full rounded-lg border-0 bg-black mb-3"
+          style={{ height: 420 }}
+        />
+      )}
+
+      {/* Botão iniciar sessão — quando STOPPED/ERROR/UNKNOWN */}
+      {(waStatus === 'STOPPED' || waStatus === 'ERROR' || waStatus === 'UNKNOWN' || !status) && account.base_url && (
+        <button onClick={() => startSession.mutate()} disabled={startSession.isPending}
+          className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm mb-3">
+          {startSession.isPending ? '⏳ Criando instancia...' : '▶ Iniciar sessao'}
+        </button>
+      )}
+
+      {/* Conectado — botão logout */}
+      {waStatus === 'WORKING' && (
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs text-green-400">✅ WhatsApp conectado</span>
+          <button onClick={() => { if (confirm('Desconectar WhatsApp?')) logout.mutate() }} disabled={logout.isPending}
+            className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50">
+            🚪 Desconectar
+          </button>
+        </div>
+      )}
+
+      {/* Edit form */}
       {editing && (
-        <div className="mt-3 pt-3 border-t border-gray-700 space-y-2">
+        <div className="pt-3 border-t border-gray-700 space-y-2">
           <input className={field} placeholder="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <input className={field} placeholder="URL (http://evolution:8080)" value={form.base_url} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))} />
-          <input className={field} type="password" placeholder="API Key" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))} />
+          <input className={field} type="password" placeholder="API Key (deixe vazio pra manter)" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))} />
           <input className={field} placeholder="Instance" value={form.instance} onChange={e => setForm(f => ({ ...f, instance: e.target.value }))} />
+          <input className={field} placeholder="Prefixo grupos" value={form.group_prefix} onChange={e => setForm(f => ({ ...f, group_prefix: e.target.value }))} />
           <div className="flex gap-2">
             <button onClick={() => update.mutate(form)} className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg">Salvar</button>
             <button onClick={() => setEditing(false)} className="bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg">Cancelar</button>
