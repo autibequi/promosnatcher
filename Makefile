@@ -63,11 +63,17 @@ start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
 
-update: ## Atualiza a aplicação: git pull + rebuild backend, redirect e frontend
+update: ## Atualiza a aplicação: git pull + rebuild backend e frontend (Go fica cacheado)
+	git pull
+	$(COMPOSE) up -d --build --no-deps backend frontend
+	@echo ""
+	@echo "Atualizado. Evolution/postgres/redis/redirect continuam no ar."
+
+update-all: ## Atualiza tudo incluindo o redirect Go (lento no Pi — só se redirect/ mudou)
 	git pull
 	$(COMPOSE) up -d --build --no-deps backend redirect frontend
 	@echo ""
-	@echo "Atualizado. Evolution/postgres/redis continuam no ar sem interrupção."
+	@echo "Atualizado (incluindo Go redirect)."
 
 pi-setup: ## Raspberry Pi: instala Docker, habilita no boot e configura swap 2GB
 	@echo "=== Instalando Docker ==="
