@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import create_db_and_tables, migrate_db
-from .routers import groups, products, scan, config, auth as auth_router, redirect, analytics, public, telegram
+from .routers import scan, config, auth as auth_router, redirect, analytics, public, telegram
 from .routers import search_terms, catalog, channels
 from .services.auth import require_auth
 from .services import scheduler
@@ -80,8 +80,6 @@ app.add_middleware(
 )
 
 app.include_router(auth_router.router, prefix="/api")
-app.include_router(groups.router, prefix="/api", dependencies=[Depends(require_auth)])
-app.include_router(products.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(scan.router, prefix="/api", dependencies=[Depends(require_auth)])
 # Rotas públicas do config (sem auth) — registradas ANTES do router protegido
 from fastapi.responses import HTMLResponse

@@ -19,7 +19,7 @@ def _make_trigger(minutes: int) -> IntervalTrigger:
 
 def _run_scan():
     if _running.is_set():
-        logger.info("Scan anterior ainda em andamento — pulando disparo")
+        logger.info("Pipeline anterior ainda em andamento — pulando disparo")
         return
     _running.set()
     try:
@@ -27,12 +27,6 @@ def _run_scan():
         asyncio.run(run_pipeline())
     except Exception as e:
         logger.error(f"Pipeline error: {e}")
-        # Fallback: tenta v1 se pipeline falhar
-        try:
-            from .scanner import scan_all_groups
-            asyncio.run(scan_all_groups())
-        except Exception:
-            pass
     finally:
         _running.clear()
 

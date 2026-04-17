@@ -14,10 +14,24 @@ from ..models import (
     SearchTerm, CrawlResult, CatalogProduct, CatalogVariant, PriceHistoryV2,
     Channel, ChannelTarget, ChannelRule,
 )
-from .scanner import _normalize_title, _parse_group_ids
-from .pipeline import _find_catalog_product, _extract_brand, _extract_weight, _extract_variant_label
+from .normalize import normalize_title, extract_brand, extract_weight, extract_variant_label
+from .pipeline import _find_catalog_product
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_group_ids(raw: str | None) -> list[str]:
+    """Parseia group_id que pode ser: None, string simples, ou JSON array."""
+    import json as _json
+    if not raw:
+        return []
+    raw = raw.strip()
+    if raw.startswith("["):
+        try:
+            return [i for i in _json.loads(raw) if i]
+        except Exception:
+            pass
+    return [raw] if raw else []
 
 
 def migrate_v1_to_v2():
@@ -114,7 +128,7 @@ def migrate_v1_to_v2():
                 session.flush()
 
                 # Find or create CatalogProduct
-                normalized = _normalize_title(product.title)
+                normalized = normalize_title(product.title)
                 if not normalized:
                     normalized = product.title.lower().strip()[:60]
 
@@ -122,8 +136,8 @@ def migrate_v1_to_v2():
                 if not catalog_product:
                     catalog_product = CatalogProduct(
                         canonical_name=normalized,
-                        brand=_extract_brand(product.title),
-                        weight=_extract_weight(product.title),
+                        brand=extract_brand(product.title),
+                        weight=extract_weight(product.title),
                         image_url=product.image_url,
                         created_at=product.found_at,
                     )
@@ -140,7 +154,7 @@ def migrate_v1_to_v2():
                     variant = CatalogVariant(
                         catalog_product_id=catalog_product.id,
                         title=product.title,
-                        variant_label=_extract_variant_label(product.title, normalized),
+                        variant_label=extract_variant_label(product.title),
                         price=product.price,
                         url=product.url,
                         image_url=product.image_url,

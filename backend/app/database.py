@@ -48,9 +48,8 @@ def migrate_db():
             except Exception:
                 pass  # coluna já existe
 
-    # Backfill short_ids para produtos existentes sem um
+    # Backfill short_ids para produtos v1 existentes
     _backfill_short_ids()
-    _backfill_family_keys()
 
 
 def _backfill_short_ids():
@@ -65,53 +64,6 @@ def _backfill_short_ids():
             )
         if rows:
             session.commit()
-
-
-def _backfill_family_keys():
-    """
-    Reconstrói family_keys para todos os produtos usando fuzzy matching cross-produto.
-    Agrupa variantes (mesmo produto, sabores diferentes) dentro de cada grupo.
-    Roda sempre no boot — idempotente e rápido para DBs sem mudanças.
-    """
-    from .services.scanner import _normalize_title, _compute_family_key
-    from .models import Product, Group
-
-    with Session(engine) as session:
-        groups = session.exec(text("SELECT id FROM \"group\"")).all()
-        updated = 0
-
-        for (group_id,) in groups:
-            products = session.execute(
-                text("SELECT id, title, family_key FROM product WHERE group_id = :gid ORDER BY found_at ASC"),
-                {"gid": group_id},
-            ).all()
-
-            if not products:
-                continue
-
-            # Reconstrói family_keys com fuzzy matching entre produtos do mesmo grupo
-            assigned: dict[str, str] = {}  # normalized -> family_key
-            new_keys: dict[int, str] = {}   # product_id -> new family_key
-
-            for pid, title, _ in products:
-                fk = _compute_family_key(title, assigned)
-                assigned[_normalize_title(title)] = fk
-                new_keys[pid] = fk
-
-            # Persiste apenas os que mudaram
-            for pid, title, old_fk in products:
-                new_fk = new_keys[pid]
-                if old_fk != new_fk:
-                    session.execute(
-                        text("UPDATE product SET family_key = :fk WHERE id = :pid"),
-                        {"fk": new_fk, "pid": pid},
-                    )
-                    updated += 1
-
-        if updated:
-            session.commit()
-            import logging
-            logging.getLogger(__name__).info(f"backfill: {updated} family_keys atualizados")
 
 
 def get_session():

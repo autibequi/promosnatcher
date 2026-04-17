@@ -23,7 +23,7 @@ from ..models import (
     AppConfig,
 )
 from . import mercadolivre, amazon
-from .scanner import _normalize_title, _deaccent, _WEIGHT_RE, _is_variant_token
+from .normalize import normalize_title, deaccent, WEIGHT_RE, is_variant_token, extract_brand, extract_weight, extract_variant_label
 from .whatsapp.factory import get_adapter, get_tg_adapter
 
 logger = logging.getLogger(__name__)
@@ -99,39 +99,6 @@ async def crawl_all_terms():
 # Step 2: PROCESS — CrawlResult → CatalogProduct/Variant
 # ---------------------------------------------------------------------------
 
-def _extract_weight(title: str) -> str | None:
-    """Extrai peso/volume do título: '900g', '1kg', etc."""
-    m = _WEIGHT_RE.search(title)
-    return m.group(0).strip().lower() if m else None
-
-
-def _extract_brand(title: str, known_brands: list[str] | None = None) -> str | None:
-    """Tenta extrair marca do título."""
-    default_brands = [
-        "integralmedica", "integralmédica", "max titanium", "growth supplements",
-        "growth", "soldiers nutrition", "soldiers", "goup nutrition", "newnutrition",
-        "new nutrition", "probiotica", "probiótica", "optimum nutrition", "dux nutrition",
-        "darkness", "essential nutrition", "nutrify", "vitafor", "black skull",
-    ]
-    brands = known_brands or default_brands
-    t_lower = title.lower()
-    for brand in sorted(brands, key=len, reverse=True):
-        if brand in t_lower:
-            return brand.title()
-    return None
-
-
-def _extract_variant_label(title: str, canonical: str) -> str | None:
-    """Extrai o rótulo da variante (sabor/cor) comparando raw vs canonical."""
-    t = _deaccent(title.lower())
-    tokens = re.split(r"[\s\-–—/|,;.]+", t)
-    variant_parts = []
-    for tok in tokens:
-        if tok and _is_variant_token(tok):
-            variant_parts.append(tok.title())
-    return " ".join(variant_parts) if variant_parts else None
-
-
 def _find_catalog_product(
     normalized: str,
     session: Session,
@@ -174,16 +141,16 @@ def process_crawl_results():
 
         for cr in unprocessed:
             # 1. Find or create CatalogProduct
-            normalized = _normalize_title(cr.title)
+            normalized = normalize_title(cr.title)
             if not normalized:
-                normalized = _deaccent(cr.title.lower().strip())[:60]
+                normalized = deaccent(cr.title.lower().strip())[:60]
 
             product = _find_catalog_product(normalized, session)
             if not product:
                 product = CatalogProduct(
                     canonical_name=normalized,
-                    brand=_extract_brand(cr.title),
-                    weight=_extract_weight(cr.title),
+                    brand=extract_brand(cr.title),
+                    weight=extract_weight(cr.title),
                     image_url=cr.image_url,
                 )
                 session.add(product)
@@ -198,7 +165,7 @@ def process_crawl_results():
                 variant = CatalogVariant(
                     catalog_product_id=product.id,
                     title=cr.title,
-                    variant_label=_extract_variant_label(cr.title, normalized),
+                    variant_label=extract_variant_label(cr.title),
                     price=cr.price,
                     url=cr.url,
                     image_url=cr.image_url,
@@ -323,8 +290,41 @@ def _format_channel_message(variant: CatalogVariant, product: CatalogProduct, te
     return tmpl.format_map(ctx)
 
 
+def _detect_events(variant: CatalogVariant, session: Session, drop_threshold: float = 0.10) -> set[str]:
+    """Detecta eventos reais para uma variante: new, drop, lowest."""
+    from datetime import timedelta
+    events = set()
+
+    # is_new: descoberto nas últimas 3h
+    age = (datetime.utcnow() - variant.first_seen_at).total_seconds()
+    if age < 10800:
+        events.add("new")
+
+    # Histórico de preço
+    history = session.exec(
+        select(PriceHistoryV2).where(PriceHistoryV2.variant_id == variant.id)
+        .order_by(PriceHistoryV2.recorded_at.desc()).limit(20)
+    ).all()
+
+    if len(history) >= 2:
+        prev_price = history[1].price
+        # is_drop: preço caiu >= threshold vs anterior
+        if prev_price > 0 and (prev_price - variant.price) / prev_price >= drop_threshold:
+            events.add("drop")
+
+    # is_lowest: preço atual é o menor de todo o histórico
+    if history:
+        min_ever = min(h.price for h in history)
+        if variant.price <= min_ever:
+            events.add("lowest")
+
+    return events
+
+
 async def evaluate_channels():
     """Para cada Channel ativo, avalia Rules contra catálogo e envia."""
+    from datetime import timedelta
+
     with Session(engine) as session:
         config = session.get(AppConfig, 1)
         channels = session.exec(select(Channel).where(Channel.active == True)).all()
@@ -351,41 +351,51 @@ async def evaluate_channels():
             if not rules:
                 continue
 
-            # Produtos com variantes atualizadas recentemente (últimas 2h)
-            from datetime import timedelta
-            recent_cutoff = datetime.utcnow() - timedelta(hours=2)
+            # Produtos atualizados recentemente (últimas 3h = janela do pipeline)
+            recent_cutoff = datetime.utcnow() - timedelta(hours=3)
             recent_products = session.exec(
                 select(CatalogProduct).where(CatalogProduct.updated_at >= recent_cutoff)
             ).all()
 
+            sent_count = 0
             for product in recent_products:
+                # Cheapest variant
+                variants = session.exec(
+                    select(CatalogVariant).where(
+                        CatalogVariant.catalog_product_id == product.id
+                    ).order_by(CatalogVariant.price.asc())
+                ).all()
+                if not variants:
+                    continue
+                cheapest = variants[0]
+
                 for rule in rules:
                     if not _rule_matches_product(rule, product, session):
                         continue
 
-                    # Determinar tipo de notificação
-                    # TODO: detectar is_new, is_drop, is_lowest de forma mais robusta
-                    is_new = rule.notify_new
-                    if not is_new and not rule.notify_drop and not rule.notify_lowest:
+                    # Detectar eventos REAIS na variante
+                    events = _detect_events(cheapest, session, rule.drop_threshold)
+
+                    should_send = (
+                        ("new" in events and rule.notify_new) or
+                        ("drop" in events and rule.notify_drop) or
+                        ("lowest" in events and rule.notify_lowest)
+                    )
+                    if not should_send:
                         continue
 
-                    # Cheapest variant
-                    variants = session.exec(
-                        select(CatalogVariant).where(
-                            CatalogVariant.catalog_product_id == product.id
-                        ).order_by(CatalogVariant.price.asc())
-                    ).all()
-                    if not variants:
-                        continue
-                    cheapest = variants[0]
+                    is_drop = "drop" in events
+                    is_lowest = "lowest" in events
 
                     for target in targets:
-                        if _product_already_sent(session, product.id, target.id, False):
+                        if _product_already_sent(session, product.id, target.id, is_drop):
                             continue
 
                         msg = _format_channel_message(
-                            cheapest, product, channel.message_template, config=config
+                            cheapest, product, channel.message_template,
+                            is_drop=is_drop, config=config,
                         )
+
                         adapter = None
                         if target.provider == "whatsapp" and config:
                             adapter = get_adapter(
@@ -411,13 +421,14 @@ async def evaluate_channels():
                             session.add(SentMessageV2(
                                 catalog_product_id=product.id,
                                 channel_target_id=target.id,
-                                is_drop=False,
+                                is_drop=is_drop,
                             ))
+                            sent_count += 1
 
-                    break  # produto já matchou uma rule, não precisa testar as outras
+                    break  # produto matchou uma rule, próximo produto
 
             session.commit()
-            logger.info("evaluate.done", extra={"channel": channel.name})
+            logger.info("evaluate.done", extra={"channel": channel.name, "sent": sent_count})
 
 
 # ---------------------------------------------------------------------------

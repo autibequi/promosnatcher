@@ -5,8 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from ..database import get_session
-from ..models import Group, AppConfig
-from ..services.scanner import _parse_group_ids
+from ..models import Channel, ChannelTarget, AppConfig
 from ..services.whatsapp.factory import get_adapter
 
 logger = logging.getLogger(__name__)
@@ -29,14 +28,10 @@ async def _get_invite_link(adapter, group_id: str) -> str | None:
 
 
 @router.get("/groups")
-async def list_public_groups(session: Session = Depends(get_session)):
-    groups = session.exec(
-        select(Group)
-        .where(Group.active == True)
-        .where(Group.whatsapp_group_id.is_not(None))
-    ).all()
-
-    if not groups:
+async def list_public_channels(session: Session = Depends(get_session)):
+    """Lista canais ativos com invite links WA (para frontpage)."""
+    channels = session.exec(select(Channel).where(Channel.active == True)).all()
+    if not channels:
         return []
 
     config = session.get(AppConfig, 1)
@@ -48,19 +43,24 @@ async def list_public_groups(session: Session = Depends(get_session)):
         )
 
     result = []
-    for g in groups:
-        wa_ids = _parse_group_ids(g.whatsapp_group_id)
-        if not wa_ids:
+    for ch in channels:
+        wa_targets = session.exec(
+            select(ChannelTarget).where(
+                ChannelTarget.channel_id == ch.id,
+                ChannelTarget.provider == "whatsapp",
+                ChannelTarget.status == "ok",
+            )
+        ).all()
+        if not wa_targets:
             continue
 
         invite_link = None
         if adapter:
-            invite_link = await _get_invite_link(adapter, wa_ids[0])
+            invite_link = await _get_invite_link(adapter, wa_targets[0].chat_id)
 
         result.append({
-            "name": g.name,
-            "description": g.description,
-            "search_prompt": g.search_prompt,
+            "name": ch.name,
+            "description": ch.description,
             "invite_link": invite_link,
         })
 

@@ -23,13 +23,8 @@ class ErrorBoundary extends Component {
 }
 import Frontpage from './pages/Frontpage'
 import Dashboard from './pages/Dashboard'
-import GroupForm from './pages/GroupForm'
-import GroupDetail from './pages/GroupDetail'
 import Settings from './pages/Settings'
 import Analytics from './pages/Analytics'
-import WAGroups from './pages/WAGroups'
-import TGGroups from './pages/TGGroups'
-import Products from './pages/Products'
 import Login from './pages/Login'
 
 // v2 pages — lazy load para nao crashar o app se api.js nao tiver os exports
@@ -100,24 +95,6 @@ export default function App() {
             <main className="max-w-6xl mx-auto px-4 py-8"><Dashboard /></main>
           </RequireAuth>
         } />
-        <Route path="/admin/groups/new" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><GroupForm /></main>
-          </RequireAuth>
-        } />
-        <Route path="/admin/groups/:id" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><GroupDetail /></main>
-          </RequireAuth>
-        } />
-        <Route path="/admin/groups/:id/edit" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><GroupForm /></main>
-          </RequireAuth>
-        } />
         <Route path="/admin/settings" element={
           <RequireAuth>
             <AdminNav onLogout={logout} />
@@ -152,25 +129,6 @@ export default function App() {
                 <Channels />
               </Suspense>
             </main>
-          </RequireAuth>
-        } />
-        {/* Legacy routes */}
-        <Route path="/admin/products" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><Products /></main>
-          </RequireAuth>
-        } />
-        <Route path="/admin/whatsapp" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><WAGroups /></main>
-          </RequireAuth>
-        } />
-        <Route path="/admin/telegram" element={
-          <RequireAuth>
-            <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><TGGroups /></main>
           </RequireAuth>
         } />
         <Route path="/admin/analytics" element={
