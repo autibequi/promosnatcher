@@ -324,5 +324,6 @@ class ChannelRead(BaseModel):
     created_at: datetime
     targets: List[ChannelTargetRead] = []
     rules: List[ChannelRuleRead] = []
+    sent_count: int = 0
     class Config:
         from_attributes = True

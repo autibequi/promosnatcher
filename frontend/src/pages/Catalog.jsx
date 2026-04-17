@@ -3,12 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCatalogProducts, getCatalogProduct, updateCatalogProduct, getVariantHistory, getKeywords, createKeyword, deleteKeyword } from '../api'
 
 function VariantRow({ variant }) {
-  const [showHistory, setShowHistory] = useState(false)
   const { data: history = [] } = useQuery({
     queryKey: ['variantHistory', variant.id],
     queryFn: () => getVariantHistory(variant.id),
-    enabled: showHistory,
+    staleTime: 60_000,
   })
+
+  const minEver = history.length > 0 ? Math.min(...history.map(h => h.price)) : variant.price
+  const aboveMin = minEver > 0 ? ((variant.price - minEver) / minEver * 100) : 0
+  const isAtMin = variant.price <= minEver && history.length > 1
 
   return (
     <div className="py-2 px-3 bg-gray-800 rounded">
@@ -18,26 +21,28 @@ function VariantRow({ variant }) {
           <p className="text-xs text-gray-300 truncate">{variant.title}</p>
           <p className="text-xs text-gray-500">{variant.source} {variant.variant_label && `| ${variant.variant_label}`}</p>
         </div>
-        <span className="text-green-400 text-sm font-medium whitespace-nowrap">R$ {variant.price.toFixed(2).replace('.', ',')}</span>
-        <button onClick={() => setShowHistory(h => !h)} className="text-xs text-gray-500 hover:text-white transition-colors">
-          {showHistory ? '▲' : '📈'}
-        </button>
+        {/* Sparkline inline */}
+        {history.length > 2 && (
+          <div className="flex gap-px items-end h-6 w-16 flex-shrink-0">
+            {history.slice(-12).map((h, i) => {
+              const max = Math.max(...history.slice(-12).map(x => x.price))
+              const min = Math.min(...history.slice(-12).map(x => x.price))
+              const range = max - min || 1
+              const pct = ((h.price - min) / range) * 100
+              return <div key={i} className="flex-1 bg-green-800 rounded-t" style={{ height: `${Math.max(15, pct)}%` }} />
+            })}
+          </div>
+        )}
+        <div className="text-right flex-shrink-0">
+          <span className="text-green-400 text-sm font-medium whitespace-nowrap">R$ {variant.price.toFixed(2).replace('.', ',')}</span>
+          {history.length > 1 && (
+            <p className={`text-xs ${isAtMin ? 'text-green-400' : aboveMin > 20 ? 'text-red-400' : 'text-gray-500'}`}>
+              {isAtMin ? 'menor preco!' : `+${aboveMin.toFixed(0)}% do min`}
+            </p>
+          )}
+        </div>
         <a href={variant.url} target="_blank" rel="noreferrer" className="text-xs text-gray-500 hover:text-green-400 transition-colors">🔗</a>
       </div>
-      {showHistory && history.length > 1 && (
-        <div className="mt-2 flex gap-1 items-end h-12">
-          {history.map((h, i) => {
-            const max = Math.max(...history.map(x => x.price))
-            const min = Math.min(...history.map(x => x.price))
-            const range = max - min || 1
-            const pct = ((h.price - min) / range) * 100
-            return (
-              <div key={i} className="flex-1 bg-green-800 rounded-t" style={{ height: `${Math.max(10, pct)}%` }}
-                title={`R$ ${h.price.toFixed(2)} — ${new Date(h.recorded_at).toLocaleDateString('pt-BR')}`} />
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
@@ -56,12 +61,18 @@ function ProductRow({ product }) {
     try { return JSON.parse(product.tags || '[]') } catch { return [] }
   }, [product.tags])
 
+  // Badge "novo" — produto criado nas últimas 24h
+  const isNew = product.created_at && (Date.now() - new Date(product.created_at).getTime()) < 86400_000
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
       <div className="p-4 flex items-start gap-3 cursor-pointer" onClick={() => setExpanded(e => !e)}>
         {product.image_url && <img src={product.image_url} alt="" className="w-16 h-16 object-contain bg-white rounded flex-shrink-0" />}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white">{product.canonical_name}</p>
+          <p className="text-sm font-medium text-white">
+            {product.canonical_name}
+            {isNew && <span className="ml-2 text-xs bg-green-900 text-green-300 px-1.5 py-0.5 rounded-full">novo</span>}
+          </p>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {product.brand && <span className="text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded">{product.brand}</span>}
             {product.weight && <span className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">{product.weight}</span>}

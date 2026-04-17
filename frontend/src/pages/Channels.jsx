@@ -69,6 +69,9 @@ export default function Channels() {
                   {ch.rules?.length > 0 && (
                     <span className="text-xs text-gray-500 ml-2">{ch.rules.length} regra{ch.rules.length > 1 ? 's' : ''}</span>
                   )}
+                  {ch.sent_count > 0 && (
+                    <span className="text-xs text-gray-500 ml-2">📤 {ch.sent_count} enviada{ch.sent_count > 1 ? 's' : ''}</span>
+                  )}
                 </div>
               </div>
               <span className="text-gray-600 text-sm ml-3">→</span>

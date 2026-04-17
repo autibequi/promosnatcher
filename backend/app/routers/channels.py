@@ -1,9 +1,10 @@
 """CRUD Channels + Targets + Rules."""
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ..database import get_session
-from ..models import Channel, ChannelTarget, ChannelRule
+from ..models import Channel, ChannelTarget, ChannelRule, SentMessageV2
 from ..schemas import (
     ChannelCreate, ChannelUpdate, ChannelRead,
     ChannelTargetCreate, ChannelTargetRead,
@@ -26,9 +27,18 @@ def list_channels(session: Session = Depends(get_session)):
         rules = session.exec(
             select(ChannelRule).where(ChannelRule.channel_id == ch.id)
         ).all()
+        target_ids = [t.id for t in targets]
+        sent_count = 0
+        if target_ids:
+            sent_count = session.scalar(
+                select(func.count(SentMessageV2.id)).where(
+                    SentMessageV2.channel_target_id.in_(target_ids)
+                )
+            ) or 0
         data = ch.model_dump()
         data["targets"] = [t.model_dump() for t in targets]
         data["rules"] = [r.model_dump() for r in rules]
+        data["sent_count"] = sent_count
         result.append(data)
     return result
 
