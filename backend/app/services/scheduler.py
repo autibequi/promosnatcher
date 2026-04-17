@@ -23,8 +23,16 @@ def _run_scan():
         return
     _running.set()
     try:
-        from .scanner import scan_all_groups
-        asyncio.run(scan_all_groups())
+        from .pipeline import run_pipeline
+        asyncio.run(run_pipeline())
+    except Exception as e:
+        logger.error(f"Pipeline error: {e}")
+        # Fallback: tenta v1 se pipeline falhar
+        try:
+            from .scanner import scan_all_groups
+            asyncio.run(scan_all_groups())
+        except Exception:
+            pass
     finally:
         _running.clear()
 
