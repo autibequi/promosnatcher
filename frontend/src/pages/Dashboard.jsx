@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getSearchTerms, getCatalogProducts, getChannels, getScanStatus } from '../api'
+import { getSearchTerms, getCatalogProducts, getChannels, getScanStatus, getGroups } from '../api'
 
 function StatCard({ label, value, icon, link, color = 'text-white' }) {
   const inner = (
@@ -16,10 +16,12 @@ function StatCard({ label, value, icon, link, color = 'text-white' }) {
 }
 
 export default function Dashboard() {
-  const { data: terms = [] } = useQuery({ queryKey: ['searchTerms'], queryFn: getSearchTerms, staleTime: 30_000 })
-  const { data: catalogPage } = useQuery({ queryKey: ['catalogDash'], queryFn: () => getCatalogProducts({ limit: 1 }), staleTime: 30_000 })
-  const { data: channels = [] } = useQuery({ queryKey: ['channels'], queryFn: getChannels, staleTime: 30_000 })
-  const { data: scanStatus } = useQuery({ queryKey: ['scanStatus'], queryFn: getScanStatus, refetchInterval: 10_000 })
+  const { data: terms = [] } = useQuery({ queryKey: ['searchTerms'], queryFn: getSearchTerms, staleTime: 30_000, retry: false })
+  const { data: catalogPage } = useQuery({ queryKey: ['catalogDash'], queryFn: () => getCatalogProducts({ limit: 1 }), staleTime: 30_000, retry: false })
+  const { data: channels = [] } = useQuery({ queryKey: ['channels'], queryFn: getChannels, staleTime: 30_000, retry: false })
+  const { data: scanStatus } = useQuery({ queryKey: ['scanStatus'], queryFn: getScanStatus, refetchInterval: 10_000, retry: false })
+  // Fallback: v1 groups count for servers that haven't migrated yet
+  const { data: groups = [] } = useQuery({ queryKey: ['groups'], queryFn: getGroups, staleTime: 60_000, retry: false })
 
   const activeTerms = terms.filter(t => t.active).length
   const catalogTotal = catalogPage?.total ?? 0
