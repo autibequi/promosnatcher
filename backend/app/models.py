@@ -125,7 +125,8 @@ class TelegramChat(SQLModel, table=True):
     is_admin: bool = False  # bot é admin?
     discovered_at: datetime = Field(default_factory=datetime.utcnow)
     last_seen_at: datetime = Field(default_factory=datetime.utcnow)
-    linked_group_id: Optional[int] = Field(default=None, foreign_key="group.id")
+    linked_group_id: Optional[int] = Field(default=None, foreign_key="group.id")  # legacy v1
+    linked_channel_id: Optional[int] = Field(default=None, foreign_key="channel.id")
 
 
 # ===========================================================================

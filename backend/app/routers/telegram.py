@@ -96,6 +96,7 @@ async def tg_list_chats(
             "member_count": c.member_count,
             "is_admin": c.is_admin,
             "linked_group_id": c.linked_group_id,
+            "linked_channel_id": c.linked_channel_id,
             "discovered_at": c.discovered_at.isoformat(),
             "last_seen_at": c.last_seen_at.isoformat(),
         }

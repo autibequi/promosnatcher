@@ -41,6 +41,8 @@ def migrate_db():
             'ALTER TABLE appconfig ADD COLUMN tg_last_update_id INTEGER',
             # Family grouping
             'ALTER TABLE product ADD COLUMN family_key TEXT',
+            # TelegramChat → Channel linking
+            'ALTER TABLE telegramchat ADD COLUMN linked_channel_id INTEGER',
         ]:
             try:
                 conn.execute(text(stmt))
