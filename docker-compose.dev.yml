@@ -58,7 +58,6 @@ services:
   backend:
     build:
       context: ./backend
-      # Usa a base pre-built (make build-base na primeira vez)
       dockerfile: Dockerfile
     container_name: promo-snatcher-backend
     ports:

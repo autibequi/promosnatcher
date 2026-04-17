@@ -101,15 +101,27 @@ pi-setup: ## Raspberry Pi: instala Docker, habilita no boot e configura swap 2GB
 	@echo "Docker instalado e swap configurado."
 	@echo "Feche e abra o terminal (ou rode 'newgrp docker') e então: make setup"
 
-build-base: ## Builda a imagem base do backend (system libs + pip + Chromium)
-	@echo "Buildando imagem base (leva ~10min na primeira vez)..."
-	docker buildx build \
-		-f backend/Dockerfile.base \
-		-t ghcr.io/autibequi/promosnatcher-base:latest \
-		--load \
-		backend/
+build-base: ## CI/prod: só o stage base → tag ghcr (multi-arch no workflow; local --load)
+	@echo "Buildando stage base (leva ~10min na primeira vez)..."
+	@if command -v docker >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1; then \
+		docker buildx build \
+			-f backend/Dockerfile \
+			--target base \
+			-t ghcr.io/autibequi/promosnatcher-base:latest \
+			--load \
+			backend/; \
+	elif command -v podman >/dev/null 2>&1; then \
+		podman build \
+			-f backend/Dockerfile \
+			--target base \
+			-t ghcr.io/autibequi/promosnatcher-base:latest \
+			backend/; \
+	else \
+		echo "Erro: precisa de docker (com buildx) ou podman para make build-base"; \
+		exit 1; \
+	fi
 	@echo ""
-	@echo "Base image pronta. Builds subsequentes do backend levam ~5s."
+	@echo "Imagem base pronta para push (ghcr) ou cache."
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data

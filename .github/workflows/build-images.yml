@@ -33,8 +33,6 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
-              - '!backend/Dockerfile.base'
-              - '!backend/requirements.txt'
             frontend:
               - 'frontend/**'
             redirect:
@@ -68,6 +66,8 @@ jobs:
           context: ./backend
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.IMAGE_PREFIX }}-backend:latest
             ${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
@@ -101,6 +101,8 @@ jobs:
           context: ./frontend
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.IMAGE_PREFIX }}-frontend:latest
             ${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
@@ -134,6 +136,8 @@ jobs:
           context: ./redirect
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.IMAGE_PREFIX }}-redirect:latest
             ${{ env.IMAGE_PREFIX }}-redirect:${{ github.sha }}

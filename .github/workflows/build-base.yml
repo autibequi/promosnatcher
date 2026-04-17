@@ -6,7 +6,7 @@ on:
     branches: [main]
     paths:
       - 'backend/requirements.txt'
-      - 'backend/Dockerfile.base'
+      - 'backend/Dockerfile'
   # Manual trigger (first time or forced rebuild)
   workflow_dispatch:
 
@@ -43,15 +43,23 @@ jobs:
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
 
+      # provenance/sbom desligados: attestations do BuildKit às vezes quebram o index
+      # multi-arch no GHCR e o pull local acusa "no match for platform in manifest".
       - name: Build e push base image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          file: ./backend/Dockerfile.base
+          file: ./backend/Dockerfile
+          target: base
           platforms: linux/amd64,linux/arm64
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha,scope=base
           cache-to: type=gha,mode=max,scope=base
+
+      - name: Verificar manifest multi-arch
+        run: docker buildx imagetools inspect ${{ env.IMAGE }}:latest
