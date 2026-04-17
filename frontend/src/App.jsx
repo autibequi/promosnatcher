@@ -1,4 +1,4 @@
-import { useState, Component } from 'react'
+import { useState, Component, Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 
 class ErrorBoundary extends Component {
@@ -30,10 +30,12 @@ import Analytics from './pages/Analytics'
 import WAGroups from './pages/WAGroups'
 import TGGroups from './pages/TGGroups'
 import Products from './pages/Products'
-import Crawlers from './pages/Crawlers'
-import Catalog from './pages/Catalog'
-import Channels from './pages/Channels'
 import Login from './pages/Login'
+
+// v2 pages — lazy load para nao crashar o app se api.js nao tiver os exports
+const Crawlers = lazy(() => import('./pages/Crawlers'))
+const Catalog = lazy(() => import('./pages/Catalog'))
+const Channels = lazy(() => import('./pages/Channels'))
 
 function AdminNav({ onLogout }) {
   const link = ({ isActive }) =>
@@ -125,19 +127,31 @@ export default function App() {
         <Route path="/admin/crawlers" element={
           <RequireAuth>
             <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><Crawlers /></main>
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <Crawlers />
+              </Suspense>
+            </main>
           </RequireAuth>
         } />
         <Route path="/admin/catalog" element={
           <RequireAuth>
             <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><Catalog /></main>
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <Catalog />
+              </Suspense>
+            </main>
           </RequireAuth>
         } />
         <Route path="/admin/channels" element={
           <RequireAuth>
             <AdminNav onLogout={logout} />
-            <main className="max-w-6xl mx-auto px-4 py-8"><Channels /></main>
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <Channels />
+              </Suspense>
+            </main>
           </RequireAuth>
         } />
         {/* Legacy routes */}
