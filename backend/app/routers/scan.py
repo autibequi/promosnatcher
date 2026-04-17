@@ -30,3 +30,14 @@ async def trigger_pipeline(bg: BackgroundTasks):
     from ..services.pipeline import run_pipeline
     bg.add_task(run_pipeline)
     return {"message": "Pipeline v2 disparado"}
+
+
+@router.post("/process")
+def trigger_process():
+    """Roda só process_crawl_results — cataloga resultados brutos existentes."""
+    from ..services.pipeline import process_crawl_results
+    try:
+        process_crawl_results()
+        return {"message": "Processamento concluído"}
+    except Exception as e:
+        return {"error": str(e)}
