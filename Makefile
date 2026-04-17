@@ -13,8 +13,8 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup start start-tunnel update pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
-        shell ps clean test scan status fix-network update-all
+.PHONY: help setup start start-tunnel deploy deploy-tunnel update pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
+        shell ps clean test scan status fix-network
 
 help: ## Mostra este help
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*##"}{printf "\033[36m%-18s\033[0m %s\n",$$1,$$2}'
@@ -48,24 +48,38 @@ print('✓ AUTH_SECRET gerado automaticamente') if changed else None"
 	@echo "  2. Opcional (acesso externo): CLOUDFLARE_TOKEN"
 	@echo "  3. make start"
 
-start: ## Produção: pull imagens + sobe tudo
+start: ## PC: builda local + sobe tudo
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	$(COMPOSE) pull --ignore-pull-failures
-	$(COMPOSE) up --remove-orphans -d
+	$(COMPOSE) up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack no ar: http://$$(hostname -I | awk '{print $$1}'):$${FRONTEND_PORT:-6060}"
 	@echo "Logs: make logs  |  Status: make status"
 
-start-tunnel: ## Produção + Cloudflare Tunnel (requer CLOUDFLARE_TOKEN no .env)
+start-tunnel: ## PC: builda local + Cloudflare Tunnel
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	COMPOSE_PROFILES=tunnel $(COMPOSE) pull --ignore-pull-failures
-	COMPOSE_PROFILES=tunnel $(COMPOSE) up --remove-orphans -d
+	COMPOSE_PROFILES=tunnel $(COMPOSE) up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
 
-update: ## Atualiza: pull novas imagens + restart (Watchtower faz isso automaticamente)
+deploy: ## Pi: pull imagens do ghcr.io + sobe tudo (sem buildar)
+	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
+	@mkdir -p backend/data
+	$(COMPOSE) pull
+	$(COMPOSE) up --remove-orphans -d
+	@echo ""
+	@echo "Stack no ar: http://$$(hostname -I | awk '{print $$1}'):$${FRONTEND_PORT:-6060}"
+
+deploy-tunnel: ## Pi: pull + Cloudflare Tunnel (sem buildar)
+	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
+	@mkdir -p backend/data
+	COMPOSE_PROFILES=tunnel $(COMPOSE) pull
+	COMPOSE_PROFILES=tunnel $(COMPOSE) up --remove-orphans -d
+	@echo ""
+	@echo "Stack + Tunnel no ar."
+
+update: ## Pi: pull novas imagens + restart (Watchtower faz automaticamente)
 	git pull
 	$(COMPOSE) pull backend frontend redirect
 	$(COMPOSE) up -d --remove-orphans
