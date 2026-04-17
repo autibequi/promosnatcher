@@ -176,7 +176,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - WATCHTOWER_POLL_INTERVAL=300      # verifica a cada 5 min
+      - WATCHTOWER_POLL_INTERVAL=60       # verifica a cada 1 min
       - WATCHTOWER_CLEANUP=true           # remove imagens velhas
       - WATCHTOWER_LABEL_ENABLE=true      # só atualiza containers com label
       - WATCHTOWER_INCLUDE_STOPPED=false

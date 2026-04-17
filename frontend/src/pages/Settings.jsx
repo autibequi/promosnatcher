@@ -193,12 +193,18 @@ export default function Settings() {
 
   const [showNewWA, setShowNewWA] = useState(false)
   const [showNewTG, setShowNewTG] = useState(false)
-  const [newWA, setNewWA] = useState({ name: '', base_url: '', api_key: '', instance: 'default' })
+  const [newWAName, setNewWAName] = useState('')
   const [newTG, setNewTG] = useState({ name: '', bot_token: '' })
 
   const createWA = useMutation({
-    mutationFn: createWAAccount,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waAccounts'] }); setShowNewWA(false); setNewWA({ name: '', base_url: '', api_key: '', instance: 'default' }) },
+    mutationFn: (name) => createWAAccount({
+      name,
+      provider: config?.wa_provider || 'evolution',
+      base_url: config?.wa_base_url || '',
+      api_key: config?.wa_api_key || '',
+      instance: name.toLowerCase().replace(/\s+/g, '-'),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['waAccounts'] }); setShowNewWA(false); setNewWAName('') },
   })
   const createTG = useMutation({
     mutationFn: createTGAccount,
@@ -236,13 +242,17 @@ export default function Settings() {
           {waAccounts.length === 0 && <p className="text-xs text-gray-600">Nenhuma conta WA. Adicione uma acima.</p>}
         </div>
         {showNewWA && (
-          <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
-            <input className={field} placeholder="Nome (ex: Principal)" value={newWA.name} onChange={e => setNewWA(f => ({ ...f, name: e.target.value }))} />
-            <input className={field} placeholder="URL (http://evolution:8080)" value={newWA.base_url} onChange={e => setNewWA(f => ({ ...f, base_url: e.target.value }))} />
-            <input className={field} type="password" placeholder="API Key" value={newWA.api_key} onChange={e => setNewWA(f => ({ ...f, api_key: e.target.value }))} />
-            <input className={field} placeholder="Instance (default)" value={newWA.instance} onChange={e => setNewWA(f => ({ ...f, instance: e.target.value }))} />
-            <button onClick={() => createWA.mutate(newWA)} disabled={!newWA.name.trim() || !newWA.base_url.trim()}
-              className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg">Criar</button>
+          <div className="mt-3 pt-3 border-t border-gray-800">
+            <div className="flex gap-2">
+              <input className={`${field} flex-1`} placeholder="Nome da conta (ex: Principal)" value={newWAName}
+                onChange={e => setNewWAName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && newWAName.trim() && createWA.mutate(newWAName)} />
+              <button onClick={() => createWA.mutate(newWAName)} disabled={!newWAName.trim() || createWA.isPending}
+                className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg">
+                {createWA.isPending ? '...' : 'Criar'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">Usa Evolution API da config global. Apos criar, clique "Iniciar sessao" e escaneie o QR.</p>
           </div>
         )}
       </div>
