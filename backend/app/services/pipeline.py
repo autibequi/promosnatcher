@@ -20,7 +20,7 @@ from ..models import (
     SearchTerm, CrawlResult,
     CatalogProduct, CatalogVariant, PriceHistoryV2,
     GroupingKeyword, Channel, ChannelTarget, ChannelRule, SentMessageV2,
-    AppConfig,
+    AppConfig, CrawlLog,
 )
 from . import mercadolivre, amazon
 from .normalize import normalize_title, deaccent, WEIGHT_RE, is_variant_token, extract_brand, extract_weight, extract_variant_label
@@ -47,25 +47,44 @@ async def crawl_search_term(search_term_id: int):
             return
 
         config = session.get(AppConfig, 1)
+
+        log = CrawlLog(search_term_id=term.id)
+        session.add(log)
+        session.commit()
+        session.refresh(log)
+        log_id = log.id
+
+    with Session(engine) as session:
+        log = session.get(CrawlLog, log_id)
+        term = session.get(SearchTerm, search_term_id)
+        config = session.get(AppConfig, 1)
         results = []
+        ml_count = 0
+        amz_count = 0
+        errors = []
 
         try:
             if term.sources in ("all", "mercadolivre"):
                 try:
-                    results += await mercadolivre.search(
+                    ml_results = await mercadolivre.search(
                         term.query, term.min_val, term.max_val,
                         client_id=config.ml_client_id if config else None,
                         client_secret=config.ml_client_secret if config else None,
                     )
+                    results += ml_results
+                    ml_count = len(ml_results)
                 except Exception as e:
+                    errors.append(f"ML: {e}")
                     logger.error("crawl.ml_error", extra={"term_id": term.id, "error": str(e)})
             if term.sources in ("all", "amazon"):
                 try:
-                    results += await amazon.search(term.query, term.min_val, term.max_val)
+                    amz_results = await amazon.search(term.query, term.min_val, term.max_val)
+                    results += amz_results
+                    amz_count = len(amz_results)
                 except Exception as e:
+                    errors.append(f"Amazon: {e}")
                     logger.error("crawl.amz_error", extra={"term_id": term.id, "error": str(e)})
 
-            # Salva cada resultado como CrawlResult raw
             for item in results:
                 session.add(CrawlResult(
                     search_term_id=term.id,
@@ -79,11 +98,32 @@ async def crawl_search_term(search_term_id: int):
             term.last_crawled_at = datetime.utcnow()
             term.result_count = len(results)
             session.add(term)
+
+            log.finished_at = datetime.utcnow()
+            log.ml_count = ml_count
+            log.amz_count = amz_count
+            if errors and not results:
+                log.status = "error"
+                log.error_msg = "; ".join(errors)
+            elif errors:
+                log.status = "partial"
+                log.error_msg = "; ".join(errors)
+            else:
+                log.status = "done"
+            session.add(log)
             session.commit()
             logger.info("crawl.done", extra={"term_id": term.id, "count": len(results)})
 
         except Exception as e:
             session.rollback()
+            with Session(engine) as s2:
+                l2 = s2.get(CrawlLog, log_id)
+                if l2:
+                    l2.finished_at = datetime.utcnow()
+                    l2.status = "error"
+                    l2.error_msg = str(e)
+                    s2.add(l2)
+                    s2.commit()
             logger.error("crawl.error", extra={"term_id": term.id, "error": str(e)})
 
 

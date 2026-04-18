@@ -53,6 +53,7 @@ def migrate_db():
             # Channel digest mode
             'ALTER TABLE channel ADD COLUMN digest_mode BOOLEAN DEFAULT 0',
             'ALTER TABLE channel ADD COLUMN digest_max_items INTEGER DEFAULT 5',
+            # CrawlLog table is created by SQLModel.metadata.create_all — no ALTER needed
         ]:
             try:
                 conn.execute(text(stmt))

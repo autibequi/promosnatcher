@@ -93,6 +93,7 @@ export const updateSearchTerm = (id, data) => api.put(`/search-terms/${id}`, dat
 export const deleteSearchTerm = (id) => api.delete(`/search-terms/${id}`)
 export const crawlSearchTerm = (id) => api.post(`/search-terms/${id}/crawl`).then(r => r.data)
 export const getCrawlResults = (termId, params = {}) => api.get(`/search-terms/${termId}/results`, { params }).then(r => r.data)
+export const getCrawlLogs = (params = {}) => api.get('/crawl-logs', { params }).then(r => r.data)
 
 // v2 — Catalog
 export const getCatalogProducts = (params = {}) => api.get('/catalog', { params }).then(r => r.data)

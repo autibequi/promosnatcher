@@ -324,3 +324,15 @@ class SentMessageV2(SQLModel, table=True):
     channel_target_id: int = Field(foreign_key="channeltarget.id", index=True)
     is_drop: bool = False
     sent_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CrawlLog(SQLModel, table=True):
+    """Log de execução de cada crawl por SearchTerm."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    search_term_id: int = Field(foreign_key="searchterm.id", index=True)
+    started_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    finished_at: Optional[datetime] = None
+    status: str = "running"  # running | done | error
+    ml_count: int = 0
+    amz_count: int = 0
+    error_msg: Optional[str] = None
