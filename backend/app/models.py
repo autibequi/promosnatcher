@@ -162,7 +162,8 @@ class TelegramChat(SQLModel, table=True):
 class SearchTerm(SQLModel, table=True):
     """Define o que buscar nos marketplaces."""
     id: Optional[int] = Field(default=None, primary_key=True)
-    query: str  # "whey barato", "switch 2"
+    query: str  # query principal (legacy + fallback)
+    queries: str = "[]"  # JSON array de queries adicionais; se vazio usa só `query`
     min_val: float = 0
     max_val: float = 9999
     sources: str = "all"  # "all" | "amazon" | "mercadolivre"
@@ -173,6 +174,15 @@ class SearchTerm(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     crawl_results: list["CrawlResult"] = Relationship(back_populates="search_term")
+
+    def get_queries(self) -> list[str]:
+        import json
+        try:
+            extra = json.loads(self.queries)
+        except Exception:
+            extra = []
+        all_q = [self.query] + [q for q in extra if q and q != self.query]
+        return list(dict.fromkeys(all_q))  # dedup preservando ordem
 
 
 class CrawlResult(SQLModel, table=True):

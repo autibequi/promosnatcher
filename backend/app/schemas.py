@@ -207,6 +207,7 @@ class TGAccountUpdate(BaseModel):
 
 class SearchTermCreate(BaseModel):
     query: str
+    queries: List[str] = []
     min_val: float = 0
     max_val: float = 9999
     sources: str = "all"
@@ -214,6 +215,7 @@ class SearchTermCreate(BaseModel):
 
 class SearchTermUpdate(BaseModel):
     query: Optional[str] = None
+    queries: Optional[List[str]] = None
     min_val: Optional[float] = None
     max_val: Optional[float] = None
     sources: Optional[str] = None
@@ -223,6 +225,7 @@ class SearchTermUpdate(BaseModel):
 class SearchTermRead(BaseModel):
     id: int
     query: str
+    queries: str = "[]"  # JSON string — frontend parseia
     min_val: float
     max_val: float
     sources: str

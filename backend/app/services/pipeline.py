@@ -64,26 +64,32 @@ async def crawl_search_term(search_term_id: int):
         errors = []
 
         try:
-            if term.sources in ("all", "mercadolivre"):
-                try:
-                    ml_results = await mercadolivre.search(
-                        term.query, term.min_val, term.max_val,
-                        client_id=config.ml_client_id if config else None,
-                        client_secret=config.ml_client_secret if config else None,
-                    )
-                    results += ml_results
-                    ml_count = len(ml_results)
-                except Exception as e:
-                    errors.append(f"ML: {e}")
-                    logger.error("crawl.ml_error", extra={"term_id": term.id, "error": str(e)})
-            if term.sources in ("all", "amazon"):
-                try:
-                    amz_results = await amazon.search(term.query, term.min_val, term.max_val)
-                    results += amz_results
-                    amz_count = len(amz_results)
-                except Exception as e:
-                    errors.append(f"Amazon: {e}")
-                    logger.error("crawl.amz_error", extra={"term_id": term.id, "error": str(e)})
+            seen_urls: set[str] = set()
+            for q in term.get_queries():
+                if term.sources in ("all", "mercadolivre"):
+                    try:
+                        ml_results = await mercadolivre.search(
+                            q, term.min_val, term.max_val,
+                            client_id=config.ml_client_id if config else None,
+                            client_secret=config.ml_client_secret if config else None,
+                        )
+                        new = [r for r in ml_results if r["url"] not in seen_urls]
+                        seen_urls.update(r["url"] for r in new)
+                        results += new
+                        ml_count += len(new)
+                    except Exception as e:
+                        errors.append(f"ML[{q}]: {e}")
+                        logger.error("crawl.ml_error", extra={"term_id": term.id, "query": q, "error": str(e)})
+                if term.sources in ("all", "amazon"):
+                    try:
+                        amz_results = await amazon.search(q, term.min_val, term.max_val)
+                        new = [r for r in amz_results if r["url"] not in seen_urls]
+                        seen_urls.update(r["url"] for r in new)
+                        results += new
+                        amz_count += len(new)
+                    except Exception as e:
+                        errors.append(f"Amazon[{q}]: {e}")
+                        logger.error("crawl.amz_error", extra={"term_id": term.id, "query": q, "error": str(e)})
 
             for item in results:
                 session.add(CrawlResult(

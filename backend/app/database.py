@@ -53,6 +53,8 @@ def migrate_db():
             # Channel digest mode
             'ALTER TABLE channel ADD COLUMN digest_mode BOOLEAN DEFAULT 0',
             'ALTER TABLE channel ADD COLUMN digest_max_items INTEGER DEFAULT 5',
+            # SearchTerm multi-query
+            "ALTER TABLE searchterm ADD COLUMN queries TEXT DEFAULT '[]'",
             # Group redirect via subdomain
             'ALTER TABLE channel ADD COLUMN slug TEXT UNIQUE',
             'ALTER TABLE channeltarget ADD COLUMN invite_url TEXT',

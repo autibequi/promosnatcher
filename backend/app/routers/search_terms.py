@@ -1,4 +1,5 @@
 """CRUD SearchTerms + crawl manual."""
+import json
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -13,6 +14,13 @@ from ..schemas import (
 router = APIRouter(prefix="/search-terms", tags=["search-terms"])
 
 
+def _dump(data: SearchTermCreate | SearchTermUpdate) -> dict:
+    d = data.model_dump(exclude_none=True)
+    if "queries" in d:
+        d["queries"] = json.dumps(d["queries"], ensure_ascii=False)
+    return d
+
+
 @router.get("", response_model=list[SearchTermRead])
 def list_terms(session: Session = Depends(get_session)):
     return session.exec(select(SearchTerm).order_by(SearchTerm.created_at.desc())).all()
@@ -20,7 +28,7 @@ def list_terms(session: Session = Depends(get_session)):
 
 @router.post("", response_model=SearchTermRead, status_code=201)
 def create_term(data: SearchTermCreate, session: Session = Depends(get_session)):
-    term = SearchTerm(**data.model_dump())
+    term = SearchTerm(**_dump(data))
     session.add(term)
     session.commit()
     session.refresh(term)
@@ -40,7 +48,7 @@ def update_term(term_id: int, data: SearchTermUpdate, session: Session = Depends
     term = session.get(SearchTerm, term_id)
     if not term:
         raise HTTPException(404, "SearchTerm not found")
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in _dump(data).items():
         setattr(term, field, value)
     session.add(term)
     session.commit()
