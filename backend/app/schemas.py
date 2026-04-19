@@ -319,6 +319,7 @@ class GroupingKeywordRead(BaseModel):
 class ChannelCreate(BaseModel):
     name: str
     description: str = ""
+    slug: Optional[str] = None
     message_template: Optional[str] = None
     send_start_hour: int = 8
     send_end_hour: int = 22
@@ -328,6 +329,7 @@ class ChannelCreate(BaseModel):
 class ChannelUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    slug: Optional[str] = None
     message_template: Optional[str] = None
     send_start_hour: Optional[int] = None
     send_end_hour: Optional[int] = None
@@ -340,6 +342,8 @@ class ChannelTargetRead(BaseModel):
     channel_id: int
     provider: str
     chat_id: str
+    name: Optional[str]
+    invite_url: Optional[str]
     status: str
     class Config:
         from_attributes = True
@@ -347,6 +351,8 @@ class ChannelTargetRead(BaseModel):
 class ChannelTargetCreate(BaseModel):
     provider: str
     chat_id: str
+    name: Optional[str] = None
+    invite_url: Optional[str] = None
 
 class ChannelRuleCreate(BaseModel):
     match_type: str
@@ -375,6 +381,7 @@ class ChannelRead(BaseModel):
     id: int
     name: str
     description: str
+    slug: Optional[str]
     message_template: Optional[str]
     send_start_hour: int
     send_end_hour: int

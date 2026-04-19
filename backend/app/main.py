@@ -9,8 +9,9 @@ load_dotenv()
 
 from .database import create_db_and_tables, migrate_db
 from .routers import scan, config, auth as auth_router, redirect, analytics, public, telegram
-from .routers import search_terms, catalog, channels, accounts
+from .routers import search_terms, catalog, channels, accounts, join
 from .routers import crawl_logs
+from .middleware.subdomain import SubdomainRedirectMiddleware
 from .services.auth import require_auth
 from .services import scheduler
 from .models import AppConfig
@@ -72,6 +73,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(SubdomainRedirectMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -104,7 +106,8 @@ app.include_router(channels.router, prefix="/api", dependencies=[Depends(require
 app.include_router(crawl_logs.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Rotas públicas (sem auth)
-app.include_router(redirect.router)  # /r/{short_id}
+app.include_router(redirect.router)   # /r/{short_id}
+app.include_router(join.router)       # /join/{slug}
 app.include_router(public.router, prefix="/api")  # /api/public/groups
 
 

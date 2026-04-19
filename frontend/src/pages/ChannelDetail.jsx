@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getChannel, updateChannel, deleteChannel,
-  addChannelTarget, removeChannelTarget,
+  addChannelTarget, updateChannelTarget, removeChannelTarget,
   addChannelRule, deleteChannelRule,
   getCatalogProducts, getWAGroups, getTGChats,
 } from '../api'
@@ -121,10 +121,145 @@ function CatalogPreview({ rules }) {
   )
 }
 
+const BASE_DOMAIN = import.meta.env.VITE_BASE_DOMAIN || 'snatcher.autibequi.com'
+
+function RedirectTab({ channel, field }) {
+  const qc = useQueryClient()
+  const [slugDraft, setSlugDraft] = useState(channel.slug || '')
+  const [inviteEditing, setInviteEditing] = useState({})
+  const [copied, setCopied] = useState(false)
+
+  const update = useMutation({
+    mutationFn: (data) => updateChannel(channel.id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['channel', String(channel.id)] }),
+  })
+  const updateTarget = useMutation({
+    mutationFn: ({ targetId, data }) => updateChannelTarget(channel.id, targetId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['channel', String(channel.id)] }),
+  })
+
+  const redirectUrl = channel.slug ? `https://${channel.slug}.${BASE_DOMAIN}` : null
+  const directUrl = channel.slug ? `${window.location.origin}/join/${channel.slug}` : null
+
+  const copy = (text) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const slugValid = /^[a-z0-9-]+$/.test(slugDraft) || slugDraft === ''
+
+  return (
+    <div className="space-y-6">
+      {/* Slug */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <h3 className="text-sm font-medium text-gray-300 mb-3">Subdomínio de redirect</h3>
+        <div className="flex gap-2 items-center mb-2">
+          <span className="text-gray-500 text-sm font-mono">https://</span>
+          <input
+            className={`${field} flex-1 font-mono`}
+            value={slugDraft}
+            onChange={e => setSlugDraft(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+            placeholder="maroma"
+          />
+          <span className="text-gray-500 text-sm font-mono">.{BASE_DOMAIN}</span>
+          <button
+            onClick={() => update.mutate({ slug: slugDraft || null })}
+            disabled={!slugValid || update.isPending}
+            className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg transition-colors"
+          >
+            Salvar
+          </button>
+        </div>
+        {!slugValid && <p className="text-xs text-red-400">Apenas letras minúsculas, números e hífens</p>}
+
+        {redirectUrl && (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+              <span className="text-green-400 text-xs font-mono flex-1">{redirectUrl}</span>
+              <button onClick={() => copy(redirectUrl)} className="text-xs text-gray-400 hover:text-white transition-colors">
+                {copied ? '✓' : 'copiar'}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+              <span className="text-blue-400 text-xs font-mono flex-1">{directUrl}</span>
+              <button onClick={() => copy(directUrl)} className="text-xs text-gray-400 hover:text-white transition-colors">copiar</button>
+            </div>
+            <p className="text-xs text-gray-600">O subdomínio redireciona com GA4 + OG tags. O link direto funciona mesmo sem DNS wildcard.</p>
+          </div>
+        )}
+        {!channel.slug && (
+          <p className="text-xs text-gray-600 mt-2">Defina um slug para ativar o redirect por subdomínio.</p>
+        )}
+      </div>
+
+      {/* Invite URLs por target */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <h3 className="text-sm font-medium text-gray-300 mb-3">Links de invite por grupo</h3>
+        {channel.targets?.length === 0 && (
+          <p className="text-xs text-gray-600">Adicione targets primeiro na aba principal.</p>
+        )}
+        <div className="space-y-4">
+          {channel.targets?.map(t => {
+            const inviteDraft = inviteEditing[`invite_${t.id}`] ?? t.invite_url ?? ''
+            const nameDraft = inviteEditing[`name_${t.id}`] ?? t.name ?? ''
+            const dirty = inviteDraft !== (t.invite_url ?? '') || nameDraft !== (t.name ?? '')
+            return (
+              <div key={t.id} className="bg-gray-800 rounded-lg p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className={t.provider === 'whatsapp' ? 'text-green-400 text-xs' : 'text-blue-400 text-xs'}>
+                    {t.provider === 'whatsapp' ? '📱 WhatsApp' : '✈️ Telegram'}
+                  </span>
+                  <span className="text-gray-600 text-xs font-mono truncate flex-1">{t.chat_id}</span>
+                  {t.invite_url && <span className="text-xs text-green-500">✓</span>}
+                </div>
+                <input
+                  className={`${field} w-full text-xs`}
+                  value={nameDraft}
+                  onChange={e => setInviteEditing(s => ({ ...s, [`name_${t.id}`]: e.target.value }))}
+                  placeholder="Nome no picker (ex: Suplementos SP)"
+                />
+                <div className="flex gap-2">
+                  <input
+                    className={`${field} flex-1 text-xs`}
+                    value={inviteDraft}
+                    onChange={e => setInviteEditing(s => ({ ...s, [`invite_${t.id}`]: e.target.value }))}
+                    placeholder={t.provider === 'whatsapp' ? 'https://chat.whatsapp.com/...' : 'https://t.me/...'}
+                  />
+                  <button
+                    onClick={() => updateTarget.mutate({ targetId: t.id, data: { invite_url: inviteDraft || null, name: nameDraft || null } })}
+                    disabled={updateTarget.isPending || !dirty}
+                    className="bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white text-xs px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Instruções Cloudflare */}
+      <div className="bg-gray-900 border border-gray-700 rounded-xl p-5">
+        <h3 className="text-sm font-medium text-gray-400 mb-2">Cloudflare — DNS wildcard</h3>
+        <div className="bg-gray-800 rounded-lg p-3 font-mono text-xs text-gray-300 space-y-1">
+          <p><span className="text-gray-500">Tipo:</span> CNAME</p>
+          <p><span className="text-gray-500">Nome:</span> *.snatcher</p>
+          <p><span className="text-gray-500">Destino:</span> {BASE_DOMAIN}</p>
+          <p><span className="text-gray-500">Proxy:</span> ✓ Ligado</p>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">Ou use o link direto <code className="text-blue-400">/join/&#123;slug&#125;</code> sem DNS wildcard.</p>
+      </div>
+    </div>
+  )
+}
+
 export default function ChannelDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [tab, setTab] = useState('main')
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [showAddRule, setShowAddRule] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -181,6 +316,11 @@ export default function ChannelDetail() {
         <span className={`${badge} ${channel.active ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
           {channel.active ? 'ativo' : 'pauso'}
         </span>
+        {channel.slug && (
+          <span className="text-xs text-purple-400 font-mono bg-purple-900/30 px-2 py-0.5 rounded-full">
+            🔗 {channel.slug}
+          </span>
+        )}
       </div>
 
       <div className="flex items-start justify-between mb-6">
@@ -199,6 +339,26 @@ export default function ChannelDetail() {
             className="bg-red-900 hover:bg-red-800 text-white text-sm px-3 py-2 rounded-lg transition-colors">Deletar</button>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-gray-800">
+        {[
+          { key: 'main', label: 'Configuração' },
+          { key: 'redirect', label: '🔗 Redirect' },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`text-sm px-4 py-2 transition-colors border-b-2 -mb-px ${tab === t.key ? 'border-green-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'redirect' && <RedirectTab channel={channel} field={field} />}
+
+      {tab === 'main' && <>
 
       {/* Edit form */}
       {editing && (
@@ -308,6 +468,8 @@ export default function ChannelDetail() {
         <h2 className="text-sm font-medium text-gray-300 mb-3">Produtos que seriam enviados</h2>
         <CatalogPreview rules={channel.rules || []} />
       </div>
+
+      </>}
     </div>
   )
 }

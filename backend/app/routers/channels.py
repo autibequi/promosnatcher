@@ -43,8 +43,20 @@ def list_channels(session: Session = Depends(get_session)):
     return result
 
 
+def _validate_slug(slug: str | None, session: Session, exclude_id: int | None = None):
+    if not slug:
+        return
+    import re
+    if not re.match(r'^[a-z0-9-]+$', slug):
+        raise HTTPException(422, "Slug deve conter apenas letras minúsculas, números e hífens")
+    existing = session.exec(select(Channel).where(Channel.slug == slug)).first()
+    if existing and existing.id != exclude_id:
+        raise HTTPException(409, f"Slug '{slug}' já está em uso")
+
+
 @router.post("", response_model=ChannelRead, status_code=201)
 def create_channel(data: ChannelCreate, session: Session = Depends(get_session)):
+    _validate_slug(data.slug, session)
     ch = Channel(**data.model_dump())
     session.add(ch)
     session.commit()
@@ -74,6 +86,7 @@ def update_channel(channel_id: int, data: ChannelUpdate, session: Session = Depe
     ch = session.get(Channel, channel_id)
     if not ch:
         raise HTTPException(404, "Channel not found")
+    _validate_slug(data.slug, session, exclude_id=channel_id)
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(ch, field, value)
     session.add(ch)
@@ -103,7 +116,6 @@ def add_target(channel_id: int, data: ChannelTargetCreate, session: Session = De
     ch = session.get(Channel, channel_id)
     if not ch:
         raise HTTPException(404, "Channel not found")
-    # Check duplicate
     existing = session.exec(
         select(ChannelTarget).where(
             ChannelTarget.channel_id == channel_id,
@@ -114,6 +126,22 @@ def add_target(channel_id: int, data: ChannelTargetCreate, session: Session = De
     if existing:
         raise HTTPException(409, "Target já existe neste channel")
     target = ChannelTarget(channel_id=channel_id, **data.model_dump())
+    session.add(target)
+    session.commit()
+    session.refresh(target)
+    return target
+
+
+@router.patch("/{channel_id}/targets/{target_id}", response_model=ChannelTargetRead)
+def update_target(channel_id: int, target_id: int, data: dict, session: Session = Depends(get_session)):
+    from pydantic import BaseModel as BM
+    target = session.get(ChannelTarget, target_id)
+    if not target or target.channel_id != channel_id:
+        raise HTTPException(404, "Target not found")
+    allowed = {"invite_url", "name", "status"}
+    for field, value in data.items():
+        if field in allowed:
+            setattr(target, field, value)
     session.add(target)
     session.commit()
     session.refresh(target)

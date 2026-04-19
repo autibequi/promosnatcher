@@ -53,6 +53,10 @@ def migrate_db():
             # Channel digest mode
             'ALTER TABLE channel ADD COLUMN digest_mode BOOLEAN DEFAULT 0',
             'ALTER TABLE channel ADD COLUMN digest_max_items INTEGER DEFAULT 5',
+            # Group redirect via subdomain
+            'ALTER TABLE channel ADD COLUMN slug TEXT UNIQUE',
+            'ALTER TABLE channeltarget ADD COLUMN invite_url TEXT',
+            'ALTER TABLE channeltarget ADD COLUMN name TEXT',
             # CrawlLog table is created by SQLModel.metadata.create_all — no ALTER needed
         ]:
             try:

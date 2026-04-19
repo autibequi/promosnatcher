@@ -278,6 +278,7 @@ class Channel(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     description: str = ""
+    slug: Optional[str] = Field(default=None, unique=True, index=True)  # ex: "maroma"
     message_template: Optional[str] = None
     send_start_hour: int = 8
     send_end_hour: int = 22
@@ -296,6 +297,8 @@ class ChannelTarget(SQLModel, table=True):
     channel_id: int = Field(foreign_key="channel.id", index=True)
     provider: str  # "whatsapp" | "telegram"
     chat_id: str  # WA JID ou TG chat_id
+    name: Optional[str] = None       # label exibido no picker (ex: "Grupo Suplementos SP")
+    invite_url: Optional[str] = None  # link estático do grupo (https://chat.whatsapp.com/... ou https://t.me/...)
     status: str = "ok"  # "ok" | "removed"
 
     channel: Optional[Channel] = Relationship(back_populates="targets")
