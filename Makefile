@@ -142,13 +142,15 @@ snatcher-down: ## Para o snatcher (build local)
 snatcher-logs: ## Logs do snatcher (build local)
 	$(COMPOSE) -f docker-compose.yml -f docker-compose.snatcher.yml logs -f
 
-beta: ## Pull ghcr + Cloudflare Tunnel → beta.autibequi.com
+beta: ## Build local + Cloudflare Tunnel → beta.autibequi.com
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	$(COMPOSE) --profile tunnel pull backend frontend
-	$(COMPOSE) --profile tunnel up --remove-orphans -d
+	$(COMPOSE) --profile tunnel \
+		-f docker-compose.yml \
+		-f docker-compose.snatcher.yml \
+		up --build --remove-orphans -d
 	@echo ""
-	@echo "Beta (ghcr) + Tunnel no ar. Logs: make logs"
+	@echo "Beta (build local) + Tunnel no ar. Logs: make logs"
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data
