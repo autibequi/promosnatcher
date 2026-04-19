@@ -13,7 +13,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup start start-tunnel deploy deploy-tunnel update pi-setup up down dev dev-down dev-logs logs logs-backend logs-frontend \
+.PHONY: help setup start start-tunnel deploy deploy-tunnel update pi-setup snatcher beta up down dev dev-down dev-logs logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network build-base
 
 help: ## Mostra este help
@@ -122,6 +122,12 @@ build-base: ## CI/prod: só o stage base → tag ghcr (multi-arch no workflow; l
 	fi
 	@echo ""
 	@echo "Imagem base pronta para push (ghcr) ou cache."
+
+snatcher: ## Build local + Cloudflare Tunnel (alias start-tunnel)
+	$(MAKE) start-tunnel
+
+beta: ## Pull ghcr + Cloudflare Tunnel → beta.autibequi.com (alias deploy-tunnel)
+	$(MAKE) deploy-tunnel
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data
