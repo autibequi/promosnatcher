@@ -2,7 +2,7 @@ import html
 import logging
 import os
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from ..database import get_session
@@ -229,6 +229,34 @@ def canal_group(slug: str, request: Request, session: Session = Depends(get_sess
     )
     logger.info("canal.picker slug=%s targets=%d", slug, len(active))
     return HTMLResponse(page)
+
+
+@router.get("/canal/{slug}/preview")
+def canal_preview(slug: str, session: Session = Depends(get_session)):
+    """JSON com metadados do canal — útil para debug e OG tags dinâmicas no admin."""
+    channel = session.exec(
+        select(Channel).where(Channel.slug == slug, Channel.active == True)
+    ).first()
+
+    if not channel:
+        return JSONResponse({"error": "not_found", "slug": slug}, status_code=404)
+
+    all_targets = session.exec(
+        select(ChannelTarget).where(ChannelTarget.channel_id == channel.id)
+    ).all()
+
+    active = _targets_with_invite(list(all_targets))
+
+    return JSONResponse({
+        "slug": slug,
+        "name": channel.name,
+        "description": channel.description or "",
+        "active": channel.active,
+        "targets_count": len(list(all_targets)),
+        "has_invite": len(active) > 0,
+        "invite_count": len(active),
+        "redirect_mode": "direct" if len(active) == 1 else ("picker" if len(active) > 1 else "empty"),
+    })
 
 
 @router.get("/join/{slug}")
