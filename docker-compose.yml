@@ -98,6 +98,7 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - AMZ_TRACKING_ID=${AMZ_TRACKING_ID:-}
       - PUBLIC_URL=${PUBLIC_URL}
+      - BASE_DOMAIN=${BASE_DOMAIN:-snatcher.autibequi.com}
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
