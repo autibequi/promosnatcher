@@ -255,6 +255,68 @@ function RedirectTab({ channel, field }) {
   )
 }
 
+function SlugInlineBlock({ channel, field }) {
+  const qc = useQueryClient()
+  const [slugDraft, setSlugDraft] = useState(channel.slug || '')
+  const [copied, setCopied] = useState(null) // 'subdomain' | 'direct' | null
+
+  const update = useMutation({
+    mutationFn: (data) => updateChannel(channel.id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['channel', String(channel.id)] }),
+  })
+
+  const slugValid = /^[a-z0-9-]+$/.test(slugDraft) || slugDraft === ''
+  const directUrl = channel.slug ? `${window.location.origin}/canal/${channel.slug}` : null
+
+  const copy = (text, key) => {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide">Link Publico</h3>
+        {!channel.slug && (
+          <span className="text-xs bg-yellow-900/40 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-700/40">
+            slug nao configurado
+          </span>
+        )}
+      </div>
+      <div className="flex gap-2 items-center">
+        <input
+          className={`${field} flex-1 font-mono text-xs`}
+          value={slugDraft}
+          onChange={e => setSlugDraft(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+          placeholder="meu-canal"
+        />
+        <button
+          onClick={() => update.mutate({ slug: slugDraft || null })}
+          disabled={!slugValid || update.isPending || slugDraft === (channel.slug || '')}
+          className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-xs px-3 py-2 rounded-lg transition-colors"
+        >
+          Salvar
+        </button>
+      </div>
+      {!slugValid && <p className="text-xs text-red-400 mt-1">Apenas letras minusculas, numeros e hifens</p>}
+      {directUrl && (
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+            <span className="text-blue-400 text-xs font-mono flex-1 truncate">{directUrl}</span>
+            <button onClick={() => copy(directUrl, 'direct')} className="text-xs text-gray-400 hover:text-white transition-colors flex-shrink-0">
+              {copied === 'direct' ? '✓ Copiado!' : 'copiar'}
+            </button>
+            <a href={directUrl} target="_blank" rel="noreferrer" className="text-xs text-gray-500 hover:text-blue-400 transition-colors flex-shrink-0">
+              Abrir
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ChannelDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -266,6 +328,7 @@ export default function ChannelDetail() {
   const [editForm, setEditForm] = useState({})
   const [targetForm, setTargetForm] = useState({ provider: 'whatsapp', chat_id: '' })
   const [ruleForm, setRuleForm] = useState({ match_type: 'tag', match_value: '', max_price: '', notify_new: true, notify_drop: false, notify_lowest: false, drop_threshold: 0.10 })
+  const [inlineInvite, setInlineInvite] = useState({})
 
   const { data: channel, isLoading } = useQuery({
     queryKey: ['channel', id],
@@ -291,6 +354,10 @@ export default function ChannelDetail() {
   })
   const rmTarget = useMutation({
     mutationFn: (targetId) => removeChannelTarget(id, targetId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['channel', id] }),
+  })
+  const updateTarget = useMutation({
+    mutationFn: ({ targetId, data }) => updateChannelTarget(id, targetId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['channel', id] }),
   })
   const addRule = useMutation({
@@ -343,8 +410,8 @@ export default function ChannelDetail() {
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-gray-800">
         {[
-          { key: 'main', label: 'Configuração' },
-          { key: 'redirect', label: '🔗 Redirect' },
+          { key: 'main', label: 'Configuracao' },
+          { key: 'redirect', label: channel.slug ? '🔗 Links Publicos' : '🔗 Links Publicos ⚠' },
         ].map(t => (
           <button
             key={t.key}
@@ -398,16 +465,38 @@ export default function ChannelDetail() {
             <button onClick={() => setShowAddTarget(t => !t)} className="text-xs text-blue-400 hover:text-blue-300">+ Target</button>
           </div>
           <div className="space-y-2">
-            {channel.targets?.map(t => (
-              <div key={t.id} className="flex items-center gap-2 py-2 px-3 bg-gray-800 rounded text-xs">
-                <span className={t.provider === 'whatsapp' ? 'text-green-400' : 'text-blue-400'}>
-                  {t.provider === 'whatsapp' ? '📱 WhatsApp' : '🤖 Telegram'}
-                </span>
-                <span className="text-gray-400 font-mono flex-1 truncate">{t.chat_id}</span>
-                <span className={`${badge} ${t.status === 'ok' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>{t.status}</span>
-                <button onClick={() => rmTarget.mutate(t.id)} className="text-gray-500 hover:text-red-400">×</button>
-              </div>
-            ))}
+            {channel.targets?.map(t => {
+              const inviteDraft = inlineInvite[`invite_${t.id}`] ?? t.invite_url ?? ''
+              const dirty = inviteDraft !== (t.invite_url ?? '')
+              return (
+                <div key={t.id} className="bg-gray-800 rounded-lg p-2 space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={t.provider === 'whatsapp' ? 'text-green-400' : 'text-blue-400'}>
+                      {t.provider === 'whatsapp' ? '📱 WhatsApp' : '🤖 Telegram'}
+                    </span>
+                    <span className="text-gray-400 font-mono flex-1 truncate">{t.chat_id}</span>
+                    <span className={`${badge} ${t.status === 'ok' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>{t.status}</span>
+                    {t.invite_url && <span className="text-green-500 text-xs">✓ link</span>}
+                    <button onClick={() => rmTarget.mutate(t.id)} className="text-gray-500 hover:text-red-400">×</button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-green-500 flex-1 transition-colors"
+                      value={inviteDraft}
+                      onChange={e => setInlineInvite(s => ({ ...s, [`invite_${t.id}`]: e.target.value }))}
+                      placeholder={t.provider === 'whatsapp' ? 'https://chat.whatsapp.com/...' : 'https://t.me/...'}
+                    />
+                    <button
+                      onClick={() => updateTarget.mutate({ targetId: t.id, data: { invite_url: inviteDraft || null } })}
+                      disabled={updateTarget.isPending || !dirty}
+                      className="bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white text-xs px-2 py-1 rounded transition-colors"
+                    >
+                      OK
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
             {(!channel.targets || channel.targets.length === 0) && <p className="text-xs text-gray-600">Nenhum target configurado</p>}
           </div>
           {showAddTarget && <TargetPicker field={field} onAdd={(data) => addTarget.mutate(data)} existingTargets={channel.targets || []} />}
@@ -462,6 +551,9 @@ export default function ChannelDetail() {
           )}
         </div>
       </div>
+
+      {/* Link publico inline */}
+      <SlugInlineBlock channel={channel} field={field} />
 
       {/* Catalog preview */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mt-6">
