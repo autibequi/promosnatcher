@@ -139,7 +139,7 @@ function RedirectTab({ channel, field }) {
   })
 
   const redirectUrl = channel.slug ? `https://${channel.slug}.${BASE_DOMAIN}` : null
-  const directUrl = channel.slug ? `${window.location.origin}/join/${channel.slug}` : null
+  const directUrl = channel.slug ? `${window.location.origin}/canal/${channel.slug}` : null
 
   const copy = (text) => {
     navigator.clipboard.writeText(text)
@@ -249,7 +249,7 @@ function RedirectTab({ channel, field }) {
           <p><span className="text-gray-500">Destino:</span> {BASE_DOMAIN}</p>
           <p><span className="text-gray-500">Proxy:</span> ✓ Ligado</p>
         </div>
-        <p className="text-xs text-gray-600 mt-2">Ou use o link direto <code className="text-blue-400">/join/&#123;slug&#125;</code> sem DNS wildcard.</p>
+        <p className="text-xs text-gray-600 mt-2">Ou use o link direto <code className="text-blue-400">/canal/&#123;slug&#125;</code> sem DNS wildcard.</p>
       </div>
     </div>
   )

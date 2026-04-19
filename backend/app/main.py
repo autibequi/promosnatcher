@@ -9,7 +9,7 @@ load_dotenv()
 
 from .database import create_db_and_tables, migrate_db
 from .routers import scan, config, auth as auth_router, redirect, analytics, public, telegram
-from .routers import search_terms, catalog, channels, accounts, join
+from .routers import search_terms, catalog, channels, accounts, canal
 from .routers import crawl_logs
 from .middleware.subdomain import SubdomainRedirectMiddleware
 from .services.auth import require_auth
@@ -107,7 +107,7 @@ app.include_router(crawl_logs.router, prefix="/api", dependencies=[Depends(requi
 
 # Rotas públicas (sem auth)
 app.include_router(redirect.router)   # /r/{short_id}
-app.include_router(join.router)       # /join/{slug}
+app.include_router(canal.router)      # /canal/{slug} (e /join/{slug} → 301)
 app.include_router(public.router, prefix="/api")  # /api/public/groups
 
 

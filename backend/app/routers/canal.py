@@ -11,7 +11,7 @@ from ..models import Channel, ChannelTarget
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["join"])
+router = APIRouter(tags=["canal"])
 
 _GA_ID = os.getenv("GA_MEASUREMENT_ID", "")
 
@@ -110,14 +110,14 @@ def _targets_with_invite(targets: list[ChannelTarget]) -> list[ChannelTarget]:
     return [t for t in targets if t.invite_url and t.status == "ok"]
 
 
-@router.get("/join/{slug}")
-def join_group(slug: str, request: Request, session: Session = Depends(get_session)):
+@router.get("/canal/{slug}")
+def canal_group(slug: str, request: Request, session: Session = Depends(get_session)):
     channel = session.exec(
         select(Channel).where(Channel.slug == slug, Channel.active == True)
     ).first()
 
     if not channel:
-        logger.info("join.not_found slug=%s", slug)
+        logger.info("canal.not_found slug=%s", slug)
         return RedirectResponse("/", status_code=302)
 
     all_targets = session.exec(
@@ -127,7 +127,7 @@ def join_group(slug: str, request: Request, session: Session = Depends(get_sessi
     active = _targets_with_invite(list(all_targets))
 
     if not active:
-        logger.warning("join.no_invite slug=%s", slug)
+        logger.warning("canal.no_invite slug=%s", slug)
         return RedirectResponse("/", status_code=302)
 
     ga_id = _GA_ID
@@ -148,7 +148,7 @@ def join_group(slug: str, request: Request, session: Session = Depends(get_sessi
             ga_event=ga_event,
             invite_url=_e(t.invite_url),
         )
-        logger.info("join.redirect slug=%s provider=%s", slug, t.provider)
+        logger.info("canal.redirect slug=%s provider=%s", slug, t.provider)
         return HTMLResponse(page)
 
     # --- N targets: picker ---
@@ -184,5 +184,11 @@ def join_group(slug: str, request: Request, session: Session = Depends(get_sessi
         plural="s" if n != 1 else "",
         plural2="is" if n != 1 else "l",
     )
-    logger.info("join.picker slug=%s targets=%d", slug, len(active))
+    logger.info("canal.picker slug=%s targets=%d", slug, len(active))
     return HTMLResponse(page)
+
+
+@router.get("/join/{slug}")
+def join_compat(slug: str):
+    """Backward-compat: redirect 301 de /join/{slug} → /canal/{slug}."""
+    return RedirectResponse(f"/canal/{slug}", status_code=301)
