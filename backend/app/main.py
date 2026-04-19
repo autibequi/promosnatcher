@@ -10,7 +10,7 @@ load_dotenv()
 from .database import create_db_and_tables, migrate_db
 from .routers import scan, config, auth as auth_router, redirect, analytics, public, telegram
 from .routers import search_terms, catalog, channels, accounts, canal
-from .routers import crawl_logs
+from .routers import crawl_logs, broadcast
 from .middleware.subdomain import SubdomainRedirectMiddleware
 from .services.auth import require_auth
 from .services import scheduler
@@ -104,6 +104,7 @@ app.include_router(search_terms.router, prefix="/api", dependencies=[Depends(req
 app.include_router(catalog.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(channels.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(crawl_logs.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(broadcast.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Rotas públicas (sem auth)
 app.include_router(redirect.router)   # /r/{short_id}

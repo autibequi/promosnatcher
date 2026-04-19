@@ -172,6 +172,8 @@ class SearchTerm(SQLModel, table=True):
     last_crawled_at: Optional[datetime] = None
     result_count: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    ml_affiliate_tool_id: Optional[str] = None  # override do global
+    amz_tracking_id: Optional[str] = None       # override do global
 
     crawl_results: list["CrawlResult"] = Relationship(back_populates="search_term")
 
@@ -349,3 +351,16 @@ class CrawlLog(SQLModel, table=True):
     ml_count: int = 0
     amz_count: int = 0
     error_msg: Optional[str] = None
+
+
+class BroadcastMessage(SQLModel, table=True):
+    """Mensagem broadcast enviada manualmente para canais/grupos."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    text: str
+    image_url: Optional[str] = None
+    channel_ids: str = "all"  # JSON array de channel IDs ou "all"
+    status: str = "pending"   # pending | sent | error
+    sent_count: int = 0
+    sent_at: Optional[datetime] = None
+    error_msg: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)

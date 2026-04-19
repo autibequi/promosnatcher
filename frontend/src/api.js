@@ -138,4 +138,9 @@ export const updateTGAccount = (id, data) => api.put(`/accounts/tg/${id}`, data)
 export const deleteTGAccount = (id) => api.delete(`/accounts/tg/${id}`)
 export const testTGAccount = (id) => api.post(`/accounts/tg/${id}/test`).then(r => r.data)
 
+// Broadcast
+export const getBroadcasts = () => api.get('/broadcast').then(r => r.data)
+export const sendBroadcast = (data) => api.post('/broadcast', data).then(r => r.data)
+export const deleteBroadcast = (id) => api.delete(`/broadcast/${id}`).then(r => r.data)
+
 export default api

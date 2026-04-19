@@ -34,6 +34,7 @@ const Channels = lazy(() => import('./pages/Channels'))
 const ChannelDetail = lazy(() => import('./pages/ChannelDetail'))
 const Groups = lazy(() => import('./pages/Groups'))
 const Logs = lazy(() => import('./pages/Logs'))
+const Broadcast = lazy(() => import('./pages/Broadcast'))
 
 function AdminNav({ onLogout }) {
   const link = ({ isActive }) =>
@@ -49,6 +50,7 @@ function AdminNav({ onLogout }) {
         <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
         <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
         <NavLink to="/admin/channels" className={link}>Canais</NavLink>
+        <NavLink to="/admin/broadcast" className={link}>Broadcast</NavLink>
         <NavLink to="/admin/groups" className={link}>Grupos</NavLink>
         <NavLink to="/admin/logs" className={link}>Logs</NavLink>
         <NavLink to="/admin/settings" className={link}>Config</NavLink>
@@ -167,6 +169,16 @@ export default function App() {
             <main className="max-w-6xl mx-auto px-4 py-8">
               <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
                 <Logs />
+              </Suspense>
+            </main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/broadcast" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <Broadcast />
               </Suspense>
             </main>
           </RequireAuth>

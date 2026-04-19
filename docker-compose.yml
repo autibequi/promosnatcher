@@ -121,10 +121,11 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     volumes:
-      - ./backend/data:/data:ro   # SQLite read-only — não compete com Python
+      - ./backend/data:/data:ro
     environment:
       - DB_PATH=/data/app.db
     restart: unless-stopped
+    profiles: [redirect]   # opt-in: arm64/Pi apenas
     deploy:
       resources:
         limits:
@@ -150,8 +151,6 @@ services:
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
     depends_on:
       backend:
-        condition: service_healthy
-      redirect:
         condition: service_healthy
     restart: unless-stopped
     deploy:

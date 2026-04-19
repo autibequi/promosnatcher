@@ -212,6 +212,8 @@ class SearchTermCreate(BaseModel):
     max_val: float = 9999
     sources: str = "all"
     crawl_interval: int = 30
+    ml_affiliate_tool_id: Optional[str] = None
+    amz_tracking_id: Optional[str] = None
 
 class SearchTermUpdate(BaseModel):
     query: Optional[str] = None
@@ -221,6 +223,8 @@ class SearchTermUpdate(BaseModel):
     sources: Optional[str] = None
     active: Optional[bool] = None
     crawl_interval: Optional[int] = None
+    ml_affiliate_tool_id: Optional[str] = None
+    amz_tracking_id: Optional[str] = None
 
 class SearchTermRead(BaseModel):
     id: int
@@ -233,6 +237,29 @@ class SearchTermRead(BaseModel):
     crawl_interval: int
     last_crawled_at: Optional[datetime]
     result_count: int
+    created_at: datetime
+    ml_affiliate_tool_id: Optional[str] = None
+    amz_tracking_id: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
+# --- Broadcast ---
+
+class BroadcastCreate(BaseModel):
+    text: str
+    image_url: Optional[str] = None
+    channel_ids: List[int] | str = "all"  # lista de IDs ou "all"
+
+class BroadcastRead(BaseModel):
+    id: int
+    text: str
+    image_url: Optional[str]
+    channel_ids: str
+    status: str
+    sent_count: int
+    sent_at: Optional[datetime]
+    error_msg: Optional[str]
     created_at: datetime
     class Config:
         from_attributes = True

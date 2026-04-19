@@ -313,7 +313,7 @@ def _product_already_sent(session: Session, product_id: int, target_id: int, is_
     ).first() is not None
 
 
-def _format_channel_message(variant: CatalogVariant, product: CatalogProduct, template: str | None, is_drop: bool = False, config=None) -> str:
+def _format_channel_message(variant: CatalogVariant, product: CatalogProduct, template: str | None, is_drop: bool = False, config=None, term: "SearchTerm | None" = None) -> str:
     """Formata mensagem para envio."""
     price_fmt = f"R$ {variant.price:.2f}".replace(".", ",")
     source_label = "Mercado Livre" if variant.source == "mercadolivre" else "Amazon"
@@ -321,10 +321,13 @@ def _format_channel_message(variant: CatalogVariant, product: CatalogProduct, te
     use_short = config.use_short_links if config else False
     url = variant.url
     if not use_short and config:
-        if variant.source == "amazon" and config.amz_tracking_id:
-            url = amazon.make_affiliate_url(url, config.amz_tracking_id)
-        elif variant.source == "mercadolivre" and config.ml_affiliate_tool_id:
-            url = mercadolivre.make_affiliate_url(url, config.ml_affiliate_tool_id)
+        # Per-crawler affiliate IDs override global
+        amz_tag = (term.amz_tracking_id if term and term.amz_tracking_id else None) or config.amz_tracking_id
+        ml_tool = (term.ml_affiliate_tool_id if term and term.ml_affiliate_tool_id else None) or config.ml_affiliate_tool_id
+        if variant.source == "amazon" and amz_tag:
+            url = amazon.make_affiliate_url(url, amz_tag)
+        elif variant.source == "mercadolivre" and ml_tool:
+            url = mercadolivre.make_affiliate_url(url, ml_tool)
 
     ctx = {
         "title": variant.title,
@@ -479,13 +482,21 @@ async def evaluate_channels():
             else:
                 # Modo normal: 1 mensagem por produto
                 for product, cheapest, is_drop in sendable:
+                    # Busca SearchTerm que originou a variante (para override de afiliado)
+                    origin_term = None
+                    origin_cr = session.exec(
+                        select(CrawlResult).where(CrawlResult.catalog_variant_id == cheapest.id)
+                    ).first()
+                    if origin_cr:
+                        origin_term = session.get(SearchTerm, origin_cr.search_term_id)
+
                     for target in targets:
                         if _product_already_sent(session, product.id, target.id, is_drop):
                             continue
 
                         msg = _format_channel_message(
                             cheapest, product, channel.message_template,
-                            is_drop=is_drop, config=config,
+                            is_drop=is_drop, config=config, term=origin_term,
                         )
 
                         adapter = None

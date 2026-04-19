@@ -60,6 +60,9 @@ def migrate_db():
             'ALTER TABLE channeltarget ADD COLUMN invite_url TEXT',
             'ALTER TABLE channeltarget ADD COLUMN name TEXT',
             # CrawlLog table is created by SQLModel.metadata.create_all — no ALTER needed
+            # SearchTerm per-crawler affiliate overrides
+            'ALTER TABLE searchterm ADD COLUMN ml_affiliate_tool_id TEXT',
+            'ALTER TABLE searchterm ADD COLUMN amz_tracking_id TEXT',
         ]:
             try:
                 conn.execute(text(stmt))

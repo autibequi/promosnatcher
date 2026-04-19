@@ -1,0 +1,14 @@
+# Override para make snatcher — substitui imagens ghcr por builds locais.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.snatcher.yml up --build
+services:
+  backend:
+    image: promosnatcher-backend-local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+  frontend:
+    image: promosnatcher-frontend-local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile

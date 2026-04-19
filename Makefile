@@ -13,7 +13,7 @@ FRONTEND_URL := http://localhost:6060
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup start start-tunnel deploy deploy-tunnel update pi-setup snatcher beta up down dev dev-down dev-logs logs logs-backend logs-frontend \
+.PHONY: help setup start start-tunnel deploy deploy-tunnel update pi-setup snatcher snatcher-down snatcher-logs beta up down dev dev-down dev-logs logs logs-backend logs-frontend \
         shell ps clean test scan status fix-network build-base
 
 help: ## Mostra este help
@@ -59,7 +59,7 @@ start: ## PC: builda local + sobe tudo
 start-tunnel: ## PC: builda local + Cloudflare Tunnel
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	COMPOSE_PROFILES=tunnel $(COMPOSE) up --build --remove-orphans -d
+	$(COMPOSE) --profile tunnel up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
 
@@ -74,8 +74,8 @@ deploy: ## Pi: pull imagens do ghcr.io + sobe tudo (sem buildar)
 deploy-tunnel: ## Pi: pull + Cloudflare Tunnel (sem buildar)
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
 	@mkdir -p backend/data
-	COMPOSE_PROFILES=tunnel $(COMPOSE) pull
-	COMPOSE_PROFILES=tunnel $(COMPOSE) up --remove-orphans -d
+	$(COMPOSE) --profile tunnel pull
+	$(COMPOSE) --profile tunnel up --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar."
 
@@ -123,11 +123,32 @@ build-base: ## CI/prod: só o stage base → tag ghcr (multi-arch no workflow; l
 	@echo ""
 	@echo "Imagem base pronta para push (ghcr) ou cache."
 
-snatcher: ## Build local + Cloudflare Tunnel (alias start-tunnel)
-	$(MAKE) start-tunnel
+snatcher: ## Build LOCAL + Cloudflare Tunnel (usa código do repo, não ghcr)
+	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
+	@mkdir -p backend/data
+	$(COMPOSE) --profile tunnel \
+		-f docker-compose.yml \
+		-f docker-compose.snatcher.yml \
+		up --build --remove-orphans -d
+	@echo ""
+	@echo "Snatcher (build local) + Tunnel no ar. Logs: make snatcher-logs"
 
-beta: ## Pull ghcr + Cloudflare Tunnel → beta.autibequi.com (alias deploy-tunnel)
-	$(MAKE) deploy-tunnel
+snatcher-down: ## Para o snatcher (build local)
+	$(COMPOSE) --profile tunnel \
+		-f docker-compose.yml \
+		-f docker-compose.snatcher.yml \
+		down --remove-orphans
+
+snatcher-logs: ## Logs do snatcher (build local)
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.snatcher.yml logs -f
+
+beta: ## Pull ghcr + Cloudflare Tunnel → beta.autibequi.com
+	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
+	@mkdir -p backend/data
+	$(COMPOSE) --profile tunnel pull backend frontend
+	$(COMPOSE) --profile tunnel up --remove-orphans -d
+	@echo ""
+	@echo "Beta (ghcr) + Tunnel no ar. Logs: make logs"
 
 up: ## Sobe a stack em background (sem rebuild)
 	@mkdir -p backend/data
