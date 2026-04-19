@@ -1,5 +1,4 @@
 import html
-import json
 import logging
 import os
 from fastapi import APIRouter, Depends, Request
@@ -14,6 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["canal"])
 
 _GA_ID = os.getenv("GA_MEASUREMENT_ID", "")
+_OG_IMAGE_URL = os.getenv("OG_IMAGE_URL", "")
 
 # Redirect direto — 1 target
 _REDIRECT_HTML = """<!DOCTYPE html>
@@ -22,6 +22,7 @@ _REDIRECT_HTML = """<!DOCTYPE html>
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{og_description}">
 <meta property="og:type" content="website">
+{og_image}
 {ga_script}
 <noscript><meta http-equiv="refresh" content="0;url={invite_url}"></noscript>
 <script>
@@ -29,6 +30,37 @@ _REDIRECT_HTML = """<!DOCTYPE html>
 setTimeout(function(){{window.location.replace('{invite_url}')}},150);
 </script>
 </head><body></body></html>"""
+
+# Estado vazio — canal existe mas sem invite_url ativo
+_EMPTY_HTML = """<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:title" content="{og_title}">
+<meta property="og:description" content="{og_description}">
+<meta property="og:type" content="website">
+{og_image}
+<title>{channel_name}</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:#0f0f0f;color:#e5e5e5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 16px}}
+.card{{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:40px 24px;
+  max-width:480px;width:100%;text-align:center}}
+.icon{{font-size:40px;margin-bottom:16px}}
+h1{{font-size:1.25rem;font-weight:700;margin-bottom:8px;color:#fff}}
+.desc{{font-size:.875rem;color:#888;margin-bottom:24px;line-height:1.5}}
+.badge{{display:inline-block;background:#2a2a2a;color:#aaa;font-size:.75rem;
+  padding:6px 14px;border-radius:20px;border:1px solid #333}}
+</style>
+</head><body>
+<div class="card">
+  <div class="icon">🔔</div>
+  <h1>{channel_name}</h1>
+  <p class="desc">{channel_description}</p>
+  <span class="badge">Links em breve — acompanhe pelo site</span>
+</div>
+</body></html>"""
 
 # Picker — múltiplos targets
 _PICKER_HTML = """<!DOCTYPE html>
@@ -38,6 +70,7 @@ _PICKER_HTML = """<!DOCTYPE html>
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{og_description}">
 <meta property="og:type" content="website">
+{og_image}
 <title>{channel_name}</title>
 {ga_script}
 <style>
@@ -126,24 +159,33 @@ def canal_group(slug: str, request: Request, session: Session = Depends(get_sess
 
     active = _targets_with_invite(list(all_targets))
 
-    if not active:
-        logger.warning("canal.no_invite slug=%s", slug)
-        return RedirectResponse("/", status_code=302)
-
     ga_id = _GA_ID
     og_title = _e(f"Entrar no grupo {channel.name}")
     og_desc = _e(channel.description or f"Grupos de promoções — {channel.name}")
+    og_image = f'<meta property="og:image" content="{_e(_OG_IMAGE_URL)}">' if _OG_IMAGE_URL else ""
+
+    if not active:
+        logger.warning("canal.no_invite slug=%s", slug)
+        page = _EMPTY_HTML.format(
+            og_title=og_title,
+            og_description=og_desc,
+            og_image=og_image,
+            channel_name=_e(channel.name),
+            channel_description=_e(channel.description or f"Grupos de promoções — {channel.name}"),
+        )
+        return HTMLResponse(page)
 
     # --- 1 target: redirect imediato ---
     if len(active) == 1:
         t = active[0]
-        ga_script = _GA_SCRIPT.format(ga_id=_e(ga_id), **{"ga_id": _e(ga_id)}) if ga_id else ""
+        ga_script = _GA_SCRIPT.format(ga_id=_e(ga_id)) if ga_id else ""
         ga_event = _GA_EVENT_REDIRECT.format(
             slug=_e(slug), name=_e(channel.name), provider=_e(t.provider)
         ) if ga_id else ""
         page = _REDIRECT_HTML.format(
             og_title=og_title,
             og_description=og_desc,
+            og_image=og_image,
             ga_script=ga_script,
             ga_event=ga_event,
             invite_url=_e(t.invite_url),
@@ -175,8 +217,9 @@ def canal_group(slug: str, request: Request, session: Session = Depends(get_sess
     page = _PICKER_HTML.format(
         og_title=og_title,
         og_description=og_desc,
+        og_image=og_image,
         channel_name=_e(channel.name),
-        channel_description=_e(channel.description or "Escolha onde receber as promoções"),
+        channel_description=_e(channel.description or "Escolha o grupo e entre agora"),
         buttons="\n    ".join(buttons),
         ga_script=ga_script,
         ga_click_script=ga_click,
