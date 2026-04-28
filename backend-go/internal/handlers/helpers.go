@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -26,4 +27,8 @@ func pathInt(r *http.Request, key string) (int64, bool) {
 
 func decodeBody(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
+}
+
+func sqlNullString(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
 }

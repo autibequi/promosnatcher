@@ -16,6 +16,9 @@ services:
       - ADMIN_PASS=${AUTH_PASSWORD}
       - JWT_SECRET=${AUTH_SECRET}
       - GOMAXPROCS=2
+      - EVOLUTION_URL=http://promo-snatcher-evolution:8080
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE:-promo-hunter}
     deploy:
       resources:
         limits:

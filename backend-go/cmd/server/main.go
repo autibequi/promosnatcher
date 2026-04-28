@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"snatcher/backendv2/internal/adapters"
 	"snatcher/backendv2/internal/config"
 	appdb "snatcher/backendv2/internal/db"
+	"snatcher/backendv2/internal/models"
 	"snatcher/backendv2/internal/pipeline"
 	"snatcher/backendv2/internal/redirect"
 	"snatcher/backendv2/internal/router"
@@ -43,6 +45,9 @@ func main() {
 
 	// Store
 	st := store.New(db)
+
+	// Pré-configura AppConfig com variáveis de ambiente se ainda não configurado
+	bootstrapConfig(st)
 
 	// Redirect (prewarm antes de aceitar tráfego)
 	rd := redirect.New(db, st)
@@ -104,7 +109,7 @@ func main() {
 	defer sched.Stop()
 
 	// HTTP server
-	h := router.Build(st, rd, runner, sched, cfg.JWTSecret, cfg.AdminUser, cfg.AdminPass)
+	h := router.Build(st, rd, runner, sched, scraperMap, cfg.JWTSecret, cfg.AdminUser, cfg.AdminPass)
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      h,
@@ -129,4 +134,39 @@ func main() {
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutCancel()
 	_ = srv.Shutdown(shutCtx)
+}
+
+// bootstrapConfig preenche o AppConfig com variáveis de ambiente
+// APENAS se os campos ainda estiverem vazios (não sobrescreve config manual).
+func bootstrapConfig(st store.Store) {
+	cfg, err := st.GetConfig()
+	if err != nil {
+		return
+	}
+
+	changed := false
+
+	evoURL := os.Getenv("EVOLUTION_URL")
+	if evoURL == "" {
+		evoURL = "http://promo-snatcher-evolution:8080"
+	}
+	if !cfg.WABaseURL.Valid || cfg.WABaseURL.String == "" {
+		cfg.WABaseURL = models.NullString{NullString: sql.NullString{String: evoURL, Valid: true}}
+		changed = true
+	}
+
+	if apiKey := os.Getenv("EVOLUTION_API_KEY"); apiKey != "" && (!cfg.WAApiKey.Valid || cfg.WAApiKey.String == "") {
+		cfg.WAApiKey = models.NullString{NullString: sql.NullString{String: apiKey, Valid: true}}
+		changed = true
+	}
+
+	if instance := os.Getenv("EVOLUTION_INSTANCE"); instance != "" && (!cfg.WAInstance.Valid || cfg.WAInstance.String == "") {
+		cfg.WAInstance = models.NullString{NullString: sql.NullString{String: instance, Valid: true}}
+		changed = true
+	}
+
+	if changed {
+		_ = st.UpdateConfig(cfg)
+		slog.Info("bootstrapConfig: AppConfig pré-configurado com variáveis de ambiente")
+	}
 }

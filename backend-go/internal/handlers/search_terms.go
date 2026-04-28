@@ -1,19 +1,69 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"snatcher/backendv2/internal/models"
+	"snatcher/backendv2/internal/pipeline"
 	"snatcher/backendv2/internal/store"
 )
 
-type SearchTermsHandler struct {
-	store store.Store
+// searchTermRequest aceita queries como array (como o frontend envia).
+type searchTermRequest struct {
+	Query             string   `json:"query"`
+	Queries           []string `json:"queries"`
+	MinVal            float64  `json:"min_val"`
+	MaxVal            float64  `json:"max_val"`
+	Sources           string   `json:"sources"`
+	Active            *bool    `json:"active"`
+	CrawlInterval     int      `json:"crawl_interval"`
+	MLAffiliateToolID string   `json:"ml_affiliate_tool_id"`
+	AmzTrackingID     string   `json:"amz_tracking_id"`
 }
 
-func NewSearchTerms(st store.Store) *SearchTermsHandler {
-	return &SearchTermsHandler{store: st}
+func (req searchTermRequest) toModel() models.SearchTerm {
+	queriesJSON, _ := json.Marshal(req.Queries)
+	t := models.SearchTerm{
+		Query:         req.Query,
+		Queries:       string(queriesJSON),
+		MinVal:        req.MinVal,
+		MaxVal:        req.MaxVal,
+		Sources:       req.Sources,
+		CrawlInterval: req.CrawlInterval,
+	}
+	if t.Queries == "" || t.Queries == "null" {
+		t.Queries = "[]"
+	}
+	if t.Sources == "" {
+		t.Sources = "all"
+	}
+	if t.CrawlInterval == 0 {
+		t.CrawlInterval = 30
+	}
+	if req.Active != nil {
+		t.Active = *req.Active
+	} else {
+		t.Active = true
+	}
+	if req.MLAffiliateToolID != "" {
+		t.MLAffiliateToolID = models.NullString{NullString: sqlNullString(req.MLAffiliateToolID)}
+	}
+	if req.AmzTrackingID != "" {
+		t.AmzTrackingID = models.NullString{NullString: sqlNullString(req.AmzTrackingID)}
+	}
+	return t
+}
+
+type SearchTermsHandler struct {
+	store   store.Store
+	scrapers map[string]pipeline.Scraper
+}
+
+func NewSearchTerms(st store.Store, scrapers map[string]pipeline.Scraper) *SearchTermsHandler {
+	return &SearchTermsHandler{store: st, scrapers: scrapers}
 }
 
 func (h *SearchTermsHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -43,20 +93,12 @@ func (h *SearchTermsHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SearchTermsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var t models.SearchTerm
-	if err := decodeBody(r, &t); err != nil {
+	var req searchTermRequest
+	if err := decodeBody(r, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if t.Queries == "" {
-		t.Queries = "[]"
-	}
-	if t.Sources == "" {
-		t.Sources = "all"
-	}
-	if t.CrawlInterval == 0 {
-		t.CrawlInterval = 30
-	}
+	t := req.toModel()
 	id, err := h.store.CreateSearchTerm(t)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
@@ -72,11 +114,12 @@ func (h *SearchTermsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	var t models.SearchTerm
-	if err := decodeBody(r, &t); err != nil {
+	var req searchTermRequest
+	if err := decodeBody(r, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	t := req.toModel()
 	t.ID = id
 	if err := h.store.UpdateSearchTerm(t); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
@@ -122,13 +165,17 @@ func (h *SearchTermsHandler) CrawlNow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	_, err := h.store.GetSearchTerm(id)
+	term, err := h.store.GetSearchTerm(id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}
-	// Dispara crawl manual (async — não bloqueia o request)
-	// O pipeline completo roda em background
+	// Dispara crawl + process em background
+	go func() {
+		ctx := context.Background()
+		_ = pipeline.CrawlSearchTerm(ctx, h.store, term, h.scrapers)
+		_ = pipeline.ProcessCrawlResults(ctx, h.store)
+	}()
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "triggered", "search_term_id": id})
 }
 

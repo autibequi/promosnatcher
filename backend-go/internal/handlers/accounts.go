@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -121,19 +123,33 @@ func (h *AccountsHandler) WAStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !acc.BaseURL.Valid || !acc.APIKey.Valid || !acc.Instance.Valid {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected", "state": "unconfigured"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "STOPPED"})
 		return
 	}
 	evo := newEvolutionClient(acc.BaseURL.String, acc.APIKey.String, acc.Instance.String)
 	status, err := evo.getStatus(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "error", "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "STOPPED", "error": err.Error()})
 		return
+	}
+	// Mapeia estados da Evolution para o formato do frontend
+	mapped := map[string]string{
+		"open":          "WORKING",
+		"close":         "STOPPED",
+		"connecting":    "SCAN_QR_CODE",
+		"qrcode":        "SCAN_QR_CODE",
+		"SCAN_QR_CODE":  "SCAN_QR_CODE",
+		"disconnected":  "STOPPED",
+		"disconnecting": "STOPPED",
+	}
+	if s, ok := mapped[status]; ok {
+		status = s
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": status})
 }
 
-func (h *AccountsHandler) WAQR(w http.ResponseWriter, r *http.Request) {
+// WAStartSession cria/inicializa a instância na Evolution API e aguarda QR.
+func (h *AccountsHandler) WAStartSession(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathInt(r, "id")
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "invalid id")
@@ -144,18 +160,96 @@ func (h *AccountsHandler) WAQR(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "account not found")
 		return
 	}
-	if !acc.BaseURL.Valid || !acc.APIKey.Valid || !acc.Instance.Valid {
-		writeErr(w, http.StatusUnprocessableEntity, "account not configured")
+
+	// Se a conta não tem URL própria, usa o AppConfig global
+	baseURL, apiKey, instance := acc.BaseURL.String, acc.APIKey.String, acc.Instance.String
+	if !acc.BaseURL.Valid || baseURL == "" {
+		cfg, _ := h.store.GetConfig()
+		if cfg.WABaseURL.Valid {
+			baseURL = cfg.WABaseURL.String
+		}
+		if cfg.WAApiKey.Valid && apiKey == "" {
+			apiKey = cfg.WAApiKey.String
+		}
+		if cfg.WAInstance.Valid && instance == "" {
+			instance = cfg.WAInstance.String
+		}
+	}
+
+	if baseURL == "" {
+		writeErr(w, http.StatusUnprocessableEntity, "Evolution URL não configurada")
 		return
 	}
-	evo := newEvolutionClient(acc.BaseURL.String, acc.APIKey.String, acc.Instance.String)
-	qr, err := evo.getQRCode(r.Context())
-	if err != nil {
+
+	evo := newEvolutionClient(baseURL, apiKey, instance)
+	if err := evo.createInstance(r.Context()); err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(qr))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "STARTING"})
+}
+
+func (h *AccountsHandler) WAQR(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	acc, err := h.store.GetWAAccount(id)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	baseURL, apiKey, instance := acc.BaseURL.String, acc.APIKey.String, acc.Instance.String
+	if !acc.BaseURL.Valid || baseURL == "" {
+		cfg, _ := h.store.GetConfig()
+		if cfg.WABaseURL.Valid {
+			baseURL = cfg.WABaseURL.String
+		}
+		if cfg.WAApiKey.Valid {
+			apiKey = cfg.WAApiKey.String
+		}
+		if cfg.WAInstance.Valid {
+			instance = cfg.WAInstance.String
+		}
+	}
+
+	if baseURL == "" {
+		http.Error(w, "not configured", http.StatusUnprocessableEntity)
+		return
+	}
+
+	evo := newEvolutionClient(baseURL, apiKey, instance)
+	qrJSON, err := evo.getQRCode(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	// Extrai base64 do JSON e retorna HTML com <img>
+	var qrBody map[string]any
+	_ = json.Unmarshal([]byte(qrJSON), &qrBody)
+	base64QR, _ := qrBody["base64"].(string)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// O QR expira a cada ~25s na Evolution — recarrega o iframe automaticamente
+	refreshURL := r.URL.Path
+	if base64QR != "" {
+		fmt.Fprintf(w, `<!DOCTYPE html><html><head>
+<script>setTimeout(()=>location.reload(),20000)</script>
+</head><body style="margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:8px">
+<img src="%s" style="max-width:90%%;max-height:90%%;object-fit:contain"/>
+<p style="color:#666;font-size:11px;font-family:sans-serif">Atualiza automaticamente a cada 20s</p>
+</body></html>`, base64QR)
+	} else {
+		fmt.Fprintf(w, `<!DOCTYPE html><html><head>
+<script>setTimeout(()=>location.reload(),5000)</script>
+</head><body style="margin:0;background:#111;color:#888;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;gap:8px">
+<p>Aguardando QR code...</p>
+<p style="font-size:11px">(<a href="%s" style="color:#555">atualizar agora</a>)</p>
+</body></html>`, refreshURL)
+	}
 }
 
 // WAHealth verifica se a Evolution API está acessível — retorna {online, url, version?, error?}.
@@ -351,6 +445,32 @@ func (e *evoClient) getQRCode(ctx context.Context) (string, error) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	return string(body), nil
+}
+
+func (e *evoClient) createInstance(ctx context.Context) error {
+	body := map[string]any{
+		"instanceName": e.instance,
+		"integration":  "WHATSAPP-BAILEYS",
+	}
+	b, _ := json.Marshal(body)
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		e.baseURL+"/instance/create", bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apiKey", e.apiKey)
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	// 409 = já existe — ok
+	if resp.StatusCode >= 400 && resp.StatusCode != 409 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("evolution create: status %d — %s", resp.StatusCode, string(b))
+	}
+	return nil
 }
 
 func waAccountFromReq(req waAccountRequest) models.WAAccount {

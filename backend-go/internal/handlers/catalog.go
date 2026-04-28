@@ -46,6 +46,9 @@ func (h *CatalogHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	variants, _ := h.store.ListVariantsByProduct(id)
+	if variants == nil {
+		variants = []models.CatalogVariant{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"product": p, "variants": variants})
 }
 
@@ -96,6 +99,9 @@ func (h *CatalogHandler) ListVariantHistory(w http.ResponseWriter, r *http.Reque
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if hist == nil {
+		hist = []models.PriceHistoryV2{}
+	}
 	writeJSON(w, http.StatusOK, hist)
 }
 
@@ -104,6 +110,9 @@ func (h *CatalogHandler) ListKeywords(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if kws == nil {
+		kws = []models.GroupingKeyword{}
 	}
 	writeJSON(w, http.StatusOK, kws)
 }

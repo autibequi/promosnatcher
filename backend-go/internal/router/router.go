@@ -19,6 +19,7 @@ func Build(
 	rd *redirect.Redirector,
 	runner *pipeline.Runner,
 	sched *scheduler.Scheduler,
+	scrapers map[string]pipeline.Scraper,
 	jwtSecret string,
 	adminUser, adminPass string,
 ) http.Handler {
@@ -30,7 +31,7 @@ func Build(
 
 	auth := handlers.NewAuth(adminUser, adminPass, jwtSecret)
 	scan := handlers.NewScan(st, runner, sched)
-	terms := handlers.NewSearchTerms(st)
+	terms := handlers.NewSearchTerms(st, scrapers)
 	catalog := handlers.NewCatalog(st)
 	channels := handlers.NewChannels(st)
 	config := handlers.NewConfig(st)
@@ -145,6 +146,8 @@ func Build(
 		r.Put("/api/accounts/wa/{id}", accounts.UpdateWA)
 		r.Delete("/api/accounts/wa/{id}", accounts.DeleteWA)
 		r.Get("/api/accounts/wa/{id}/status", accounts.WAStatus)
+		r.Post("/api/accounts/wa/{id}/session/start", accounts.WAStartSession)
+		r.Post("/api/accounts/wa/{id}/session/logout", accounts.WAStartSession) // placeholder
 
 		// Accounts — Telegram
 		r.Get("/api/accounts/tg", accounts.ListTG)
