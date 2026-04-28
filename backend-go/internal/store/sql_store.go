@@ -175,6 +175,20 @@ func (s *SQLStore) InsertCrawlResult(r models.CrawlResult) (int64, error) {
 	return res.LastInsertId()
 }
 
+func (s *SQLStore) ListCrawlResultsByTerm(termID int64, limit, offset int) ([]models.CrawlResult, error) {
+	var out []models.CrawlResult
+	err := s.db.Select(&out,
+		`SELECT * FROM crawlresult WHERE search_term_id = ? ORDER BY crawled_at DESC LIMIT ? OFFSET ?`,
+		termID, limit, offset)
+	return out, err
+}
+
+func (s *SQLStore) CountCrawlResultsByTerm(termID int64) (int64, error) {
+	var count int64
+	err := s.db.Get(&count, `SELECT COUNT(*) FROM crawlresult WHERE search_term_id = ?`, termID)
+	return count, err
+}
+
 func (s *SQLStore) ListUnprocessedCrawlResults() ([]models.CrawlResult, error) {
 	var out []models.CrawlResult
 	err := s.db.Select(&out, `SELECT * FROM crawlresult WHERE catalog_variant_id IS NULL ORDER BY id`)

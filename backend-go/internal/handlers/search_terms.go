@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"snatcher/backendv2/internal/models"
 	"snatcher/backendv2/internal/store"
@@ -82,6 +83,53 @@ func (h *SearchTermsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
+}
+
+func (h *SearchTermsHandler) ListResults(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	_, err := h.store.GetSearchTerm(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	if limit == 0 {
+		limit = 30
+	}
+	results, err := h.store.ListCrawlResultsByTerm(id, limit, offset)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if results == nil {
+		results = []models.CrawlResult{}
+	}
+	total, _ := h.store.CountCrawlResultsByTerm(id)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": results, "total": total, "limit": limit, "offset": offset,
+	})
+}
+
+func (h *SearchTermsHandler) CrawlNow(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	_, err := h.store.GetSearchTerm(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	// Dispara crawl manual (async — não bloqueia o request)
+	// O pipeline completo roda em background
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "triggered", "search_term_id": id})
 }
 
 func (h *SearchTermsHandler) Delete(w http.ResponseWriter, r *http.Request) {

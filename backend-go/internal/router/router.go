@@ -107,6 +107,8 @@ func Build(
 		r.Post("/api/search-terms/", terms.Create)
 		r.Put("/api/search-terms/{id}", terms.Update)
 		r.Delete("/api/search-terms/{id}", terms.Delete)
+		r.Post("/api/search-terms/{id}/crawl", terms.CrawlNow)
+		r.Get("/api/search-terms/{id}/results", terms.ListResults)
 
 		// Catalog
 		r.Get("/api/catalog", catalog.List)

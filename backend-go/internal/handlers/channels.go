@@ -49,8 +49,20 @@ func (h *ChannelsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targets, _ := h.store.ListChannelTargets(id)
+	if targets == nil {
+		targets = []models.ChannelTarget{}
+	}
 	rules, _ := h.store.ListChannelRules(id)
-	writeJSON(w, http.StatusOK, map[string]any{"channel": c, "targets": targets, "rules": rules})
+	if rules == nil {
+		rules = []models.ChannelRule{}
+	}
+	// Retorna flat (igual ao Python): channel fields + targets + rules no mesmo nível
+	type channelFull struct {
+		models.Channel
+		Targets []models.ChannelTarget `json:"targets"`
+		Rules   []models.ChannelRule   `json:"rules"`
+	}
+	writeJSON(w, http.StatusOK, channelFull{Channel: c, Targets: targets, Rules: rules})
 }
 
 type channelRequest struct {

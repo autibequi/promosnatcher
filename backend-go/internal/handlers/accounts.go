@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"snatcher/backendv2/internal/models"
 	"snatcher/backendv2/internal/store"
 	"time"
@@ -157,20 +158,48 @@ func (h *AccountsHandler) WAQR(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(qr))
 }
 
-// WAHealth verifica o status da Evolution API global (config principal).
+// WAHealth verifica se a Evolution API está acessível — retorna {online, url, version?, error?}.
 func (h *AccountsHandler) WAHealth(w http.ResponseWriter, r *http.Request) {
-	cfg, err := h.store.GetConfig()
-	if err != nil || !cfg.WABaseURL.Valid || !cfg.WAApiKey.Valid || !cfg.WAInstance.Valid {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected", "error": "not configured"})
+	// Tenta pegar URL da primeira conta WA ativa, depois do AppConfig
+	var baseURL string
+	accs, _ := h.store.ListWAAccounts()
+	for _, a := range accs {
+		if a.Active && a.BaseURL.Valid && a.BaseURL.String != "" {
+			baseURL = a.BaseURL.String
+			break
+		}
+	}
+	if baseURL == "" {
+		cfg, err := h.store.GetConfig()
+		if err == nil && cfg.WABaseURL.Valid {
+			baseURL = cfg.WABaseURL.String
+		}
+	}
+	if baseURL == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"online": false, "error": "Nenhuma URL configurada"})
 		return
 	}
-	evo := newEvolutionClient(cfg.WABaseURL.String, cfg.WAApiKey.String, cfg.WAInstance.String)
-	status, err := evo.getStatus(r.Context())
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	req, err := http.NewRequestWithContext(r.Context(), "GET", strings.TrimRight(baseURL, "/")+"/", nil)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "error", "error": err.Error(), "url": cfg.WABaseURL.String})
+		writeJSON(w, http.StatusOK, map[string]any{"online": false, "url": baseURL, "error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": status, "url": cfg.WABaseURL.String})
+	resp, err := client.Do(req)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"online": false, "url": baseURL, "error": err.Error()[:100]})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
+		var body map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		version, _ := body["version"].(string)
+		writeJSON(w, http.StatusOK, map[string]any{"online": true, "url": baseURL, "version": version})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"online": false, "url": baseURL, "status": resp.StatusCode})
 }
 
 func (h *AccountsHandler) ListTG(w http.ResponseWriter, r *http.Request) {

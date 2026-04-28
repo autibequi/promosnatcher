@@ -32,6 +32,8 @@ type Store interface {
 	// CrawlResults
 	InsertCrawlResult(r models.CrawlResult) (int64, error)
 	ListUnprocessedCrawlResults() ([]models.CrawlResult, error)
+	ListCrawlResultsByTerm(termID int64, limit, offset int) ([]models.CrawlResult, error)
+	CountCrawlResultsByTerm(termID int64) (int64, error)
 	MarkCrawlResultProcessed(id int64, variantID int64) error
 	URLAlreadyCrawled(searchTermID int64, url string) (bool, error)
 
