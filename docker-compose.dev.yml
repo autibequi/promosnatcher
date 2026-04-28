@@ -72,14 +72,14 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./backend-python
       dockerfile: Dockerfile
     container_name: promo-snatcher-backend
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/app:/app/app
-      - ./backend/data:/app/data
+      - ./backend-python/app:/app/app
+      - ./backend-python/data:/app/data
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock:/var/run/podman.sock:ro
     environment:
       - DATABASE_URL=sqlite:///./data/app.db

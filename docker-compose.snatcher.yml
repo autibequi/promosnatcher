@@ -1,11 +1,33 @@
-# Override para make snatcher — substitui imagens ghcr por builds locais.
+# Override para dev local — substitui imagens ghcr por builds locais.
 # Uso: docker compose -f docker-compose.yml -f docker-compose.snatcher.yml up --build
 services:
   backend:
-    image: promosnatcher-backend-local
+    image: promosnatcher-backend-go-local
     build:
-      context: ./backend
+      context: ./backend-go
       dockerfile: Dockerfile
+    volumes:
+      - ./backend-go/data:/app/data
+    environment:
+      - DATABASE_URL=/app/data/app.db
+      - PORT=8000
+      - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
+      - ADMIN_USER=${AUTH_USERNAME:-admin}
+      - ADMIN_PASS=${AUTH_PASSWORD}
+      - JWT_SECRET=${AUTH_SECRET}
+      - GOMAXPROCS=2
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  # redirect agora está integrado no backend-go (porta 8000)
+  redirect:
+    profiles: ["redirect-disabled"]
+
+  # Watchtower não funciona com Podman rootless (socket diferente)
+  watchtower:
+    profiles: ["watchtower-disabled"]
 
   frontend:
     image: promosnatcher-frontend-local

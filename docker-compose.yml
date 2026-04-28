@@ -84,7 +84,7 @@ services:
     # shm_size necessário para o Chromium (Amazon scraping) não crashar no Pi
     shm_size: '128mb'
     volumes:
-      - ./backend/data:/app/data
+      - ./backend-python/data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
@@ -109,11 +109,11 @@ services:
         limits:
           memory: 768m
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/health"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 60s   # Chromium ARM demora mais pra inicializar
+      start_period: 60s   # Chromium ARM demora mais pra inicializar (Python); Go ignora esse delay
 
   redirect:
     image: ghcr.io/autibequi/promosnatcher-redirect:latest
@@ -121,7 +121,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     volumes:
-      - ./backend/data:/data:ro
+      - ./backend-python/data:/data:ro
     environment:
       - DB_PATH=/data/app.db
     restart: unless-stopped

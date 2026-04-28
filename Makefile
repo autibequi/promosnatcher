@@ -50,7 +50,7 @@ print('✓ AUTH_SECRET gerado automaticamente') if changed else None"
 
 start: ## PC: builda local + sobe tudo
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack no ar: http://$$(hostname -I | awk '{print $$1}'):$${FRONTEND_PORT:-6060}"
@@ -58,14 +58,14 @@ start: ## PC: builda local + sobe tudo
 
 start-tunnel: ## PC: builda local + Cloudflare Tunnel
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) --profile tunnel up --build --remove-orphans -d
 	@echo ""
 	@echo "Stack + Tunnel no ar. Logs: make logs"
 
 deploy: ## Pi: pull imagens do ghcr.io + sobe tudo (sem buildar)
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) pull
 	$(COMPOSE) up --remove-orphans -d
 	@echo ""
@@ -73,7 +73,7 @@ deploy: ## Pi: pull imagens do ghcr.io + sobe tudo (sem buildar)
 
 deploy-tunnel: ## Pi: pull + Cloudflare Tunnel (sem buildar)
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) --profile tunnel pull
 	$(COMPOSE) --profile tunnel up --remove-orphans -d
 	@echo ""
@@ -105,17 +105,17 @@ build-base: ## CI/prod: só o stage base → tag ghcr (multi-arch no workflow; l
 	@echo "Buildando stage base (leva ~10min na primeira vez)..."
 	@if command -v docker >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1; then \
 		docker buildx build \
-			-f backend/Dockerfile \
+			-f backend-python/Dockerfile \
 			--target base \
 			-t ghcr.io/autibequi/promosnatcher-base:latest \
 			--load \
-			backend/; \
+			backend-python/; \
 	elif command -v podman >/dev/null 2>&1; then \
 		podman build \
-			-f backend/Dockerfile \
+			-f backend-python/Dockerfile \
 			--target base \
 			-t ghcr.io/autibequi/promosnatcher-base:latest \
-			backend/; \
+			backend-python/; \
 	else \
 		echo "Erro: precisa de docker (com buildx) ou podman para make build-base"; \
 		exit 1; \
@@ -125,7 +125,7 @@ build-base: ## CI/prod: só o stage base → tag ghcr (multi-arch no workflow; l
 
 snatcher: ## Build LOCAL + Cloudflare Tunnel (usa código do repo, não ghcr)
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) --profile tunnel \
 		-f docker-compose.yml \
 		-f docker-compose.snatcher.yml \
@@ -144,16 +144,16 @@ snatcher-logs: ## Logs do snatcher (build local)
 
 beta: ## Build local + Cloudflare Tunnel → beta.autibequi.com
 	@[ -f .env ] || { echo "Rodando setup primeiro..."; $(MAKE) setup; }
-	@mkdir -p backend/data
-	$(COMPOSE) --profile tunnel \
+	@mkdir -p backend-go/data
+	BUILDAH_FORMAT=docker $(COMPOSE) --profile tunnel \
 		-f docker-compose.yml \
 		-f docker-compose.snatcher.yml \
-		up --build --remove-orphans -d
+		up --build --force-recreate --remove-orphans -d
 	@echo ""
 	@echo "Beta (build local) + Tunnel no ar. Logs: make logs"
 
 up: ## Sobe a stack em background (sem rebuild)
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) up --remove-orphans -d
 
 down: ## Para e remove os containers
@@ -180,7 +180,7 @@ logs-frontend: ## Logs só do frontend
 # ---------------------------------------------------------------------------
 
 dev: ## Modo dev com hot-reload (backend uvicorn --reload + frontend vite dev)
-	@mkdir -p backend/data
+	@mkdir -p backend-go/data
 	$(COMPOSE) -f docker-compose.dev.yml up --build --remove-orphans -d
 	@echo ""
 	@echo "🔥 Dev mode — hot-reload (rede Docker interna: promosnatcher_internal)"
