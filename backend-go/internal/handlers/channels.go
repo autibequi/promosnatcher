@@ -114,7 +114,7 @@ func (h *ChannelsHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type channelRequest struct {
-	Name            string  `json:"name"`
+	Name            string  `json:"name"             validate:"required"`
 	Description     string  `json:"description"`
 	Slug            *string `json:"slug"`
 	MessageTemplate *string `json:"message_template"`
@@ -151,14 +151,23 @@ func (req channelRequest) toModel() models.Channel {
 	return c
 }
 
+// Create cria um novo canal de notificação.
+//
+//	@Summary      Criar canal
+//	@Description  Cria um canal de notificação (WhatsApp/Telegram) com regras de alerta.
+//	@Tags         channels
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      channelRequest  true  "Dados do canal"
+//	@Success      201   {object}  models.Channel
+//	@Failure      400   {object}  object{error=string}
+//	@Failure      500   {object}  object{error=string}
+//	@Security     BearerAuth
+//	@Router       /api/channels [post]
 func (h *ChannelsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req channelRequest
-	if err := decodeBody(r, &req); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid body")
-		return
-	}
-	if req.Name == "" {
-		writeErr(w, http.StatusBadRequest, "name is required")
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeValidationErr(w, err)
 		return
 	}
 	c := req.toModel()
@@ -342,7 +351,7 @@ func (h *ChannelsHandler) DeleteTarget(w http.ResponseWriter, r *http.Request) {
 }
 
 type ruleRequest struct {
-	MatchType     string   `json:"match_type"`
+	MatchType     string   `json:"match_type"     validate:"required"`
 	MatchValue    *string  `json:"match_value"`
 	MaxPrice      *float64 `json:"max_price"`
 	NotifyNew     bool     `json:"notify_new"`
@@ -359,8 +368,8 @@ func (h *ChannelsHandler) CreateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req ruleRequest
-	if err := decodeBody(r, &req); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid body")
+	if err := decodeAndValidate(r, &req); err != nil {
+		writeValidationErr(w, err)
 		return
 	}
 	rule := models.ChannelRule{

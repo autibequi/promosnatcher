@@ -15,6 +15,18 @@ func NewCatalog(st store.Store) *CatalogHandler {
 	return &CatalogHandler{store: st}
 }
 
+// List retorna produtos do catálogo com paginação.
+//
+//	@Summary      Listar catálogo
+//	@Description  Retorna lista paginada de produtos do catálogo.
+//	@Tags         catalog
+//	@Produce      json
+//	@Param        limit   query     int  false  "Número máximo de itens (default 30)"
+//	@Param        offset  query     int  false  "Offset para paginação"
+//	@Success      200     {object}  object{items=[]models.CatalogProduct,total=int,limit=int,offset=int}
+//	@Failure      500     {object}  object{error=string}
+//	@Security     BearerAuth
+//	@Router       /api/catalog [get]
 func (h *CatalogHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit, _ := strconv.Atoi(q.Get("limit"))
@@ -41,6 +53,18 @@ func (h *CatalogHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Get retorna um produto do catálogo pelo ID.
+//
+//	@Summary      Obter produto
+//	@Description  Retorna um produto com suas variantes pelo ID.
+//	@Tags         catalog
+//	@Produce      json
+//	@Param        id   path      int  true  "ID do produto"
+//	@Success      200  {object}  object{product=models.CatalogProduct,variants=[]models.CatalogVariant}
+//	@Failure      400  {object}  object{error=string}
+//	@Failure      404  {object}  object{error=string}
+//	@Security     BearerAuth
+//	@Router       /api/catalog/{id} [get]
 func (h *CatalogHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathInt(r, "id")
 	if !ok {

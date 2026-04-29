@@ -1,17 +1,23 @@
 package router
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"snatcher/backendv2/internal/handlers"
+	_ "snatcher/backendv2/internal/docs" // swagger docs
 	"snatcher/backendv2/internal/middleware"
 	"snatcher/backendv2/internal/pipeline"
 	"snatcher/backendv2/internal/redirect"
 	"snatcher/backendv2/internal/scheduler"
 	"snatcher/backendv2/internal/store"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func Build(
@@ -25,10 +31,15 @@ func Build(
 	adminUser, adminPass string,
 ) http.Handler {
 	r := chi.NewRouter()
+	r.Use(chimw.RequestID)
+	r.Use(requestIDLogger)
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
-	r.Use(chimw.CleanPath)   // normaliza // e remove trailing slash
+	r.Use(chimw.CleanPath)                              // normaliza // e remove trailing slash
 	r.Use(middleware.CORS)
+	r.Use(chimw.Timeout(30 * time.Second))              // global request timeout
+	r.Use(middleware.BodyLimit(1 << 20))                // global 1 MB body limit
+	r.Use(middleware.MetricsMiddleware)
 
 	auth := handlers.NewAuth(adminUser, adminPass, jwtSecret)
 	scan := handlers.NewScan(st, runner, sched)
@@ -43,19 +54,34 @@ func Build(
 	analytics := handlers.NewAnalytics(st)
 
 	// ---------------------------------------------------------------------------
+	// Rota de métricas (pública — antes do grupo JWT)
+	// ---------------------------------------------------------------------------
+	r.Handle("/metrics", promhttp.Handler())
+
+	// ---------------------------------------------------------------------------
+	// OpenAPI / Swagger UI
+	// ---------------------------------------------------------------------------
+	r.Get("/api/swagger", func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, "/api/swagger/index.html", http.StatusFound)
+	})
+	r.Get("/api/swagger/", func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, "/api/swagger/index.html", http.StatusFound)
+	})
+	r.Get("/api/swagger/*", httpSwagger.Handler(httpSwagger.URL("/api/swagger/doc.json")))
+
+	// ---------------------------------------------------------------------------
 	// Rotas públicas
 	// ---------------------------------------------------------------------------
-	r.Get("/api/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
+	r.Get("/api/health", healthHandler)
 
-	r.Post("/api/auth/login", auth.Login)
+	// /api/auth/login: 5 req/min per IP (burst 5) — brute-force protection
+	r.With(middleware.RateLimit(5.0/60.0, 5)).Post("/api/auth/login", auth.Login)
 	r.Get("/api/auth/me", auth.Me)
 
-	r.Get("/r/{shortID}", rd.Handler())
+	// Redirect routes: 60 req/min per IP (burst 60) — light DoS protection
+	r.With(middleware.RateLimit(60.0/60.0, 60)).Get("/r/{shortID}", rd.Handler())
 	// Redirect para variantes do catálogo v2
-	r.Get("/v/{shortID}", func(w http.ResponseWriter, r *http.Request) {
+	r.With(middleware.RateLimit(60.0/60.0, 60)).Get("/v/{shortID}", func(w http.ResponseWriter, r *http.Request) {
 		shortID := r.PathValue("shortID")
 		v, found, err := st.GetVariantByShortID(shortID)
 		if err != nil || !found {
@@ -206,4 +232,53 @@ func Build(
 	})
 
 	return r
+}
+
+// requestIDLogger is a middleware that extracts the request ID set by
+// chimw.RequestID and injects it into the default slog logger so that all
+// subsequent log calls within the request carry the "request_id" field.
+func requestIDLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := chimw.GetReqID(r.Context())
+		if reqID != "" {
+			logger := slog.Default().With("request_id", reqID)
+			// Store the per-request logger in the context so handlers can
+			// retrieve it with slog.Default() after SetDefault — or use it
+			// directly via contextLogger(r.Context()).
+			ctx := r.Context()
+			r = r.WithContext(withLogger(ctx, logger))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+type loggerKeyType struct{}
+
+var loggerKey = loggerKeyType{}
+
+// withLogger stores a *slog.Logger in the context.
+func withLogger(ctx context.Context, l *slog.Logger) context.Context {
+	return context.WithValue(ctx, loggerKey, l)
+}
+
+// LoggerFromContext retrieves the per-request slog.Logger stored by
+// requestIDLogger, falling back to slog.Default() if none is present.
+func LoggerFromContext(ctx context.Context) *slog.Logger {
+	if l, ok := ctx.Value(loggerKey).(*slog.Logger); ok && l != nil {
+		return l
+	}
+	return slog.Default()
+}
+
+// healthHandler verifica a saúde da aplicação.
+//
+//	@Summary      Health check
+//	@Description  Verifica se o servidor está no ar.
+//	@Tags         health
+//	@Produce      json
+//	@Success      200  {object}  object{status=string}
+//	@Router       /api/health [get]
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }

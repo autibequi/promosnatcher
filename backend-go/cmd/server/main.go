@@ -1,3 +1,12 @@
+// @title           Snatcher API
+// @version         1.0
+// @description     API de scraping e monitoramento de preços com integração Telegram/WhatsApp.
+// @host            localhost:8000
+// @BasePath        /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 package main
 
 import (
@@ -15,6 +24,7 @@ import (
 	"snatcher/backendv2/internal/config"
 	appdb "snatcher/backendv2/internal/db"
 	"snatcher/backendv2/internal/models"
+	"snatcher/backendv2/internal/observability"
 	"snatcher/backendv2/internal/pipeline"
 	"snatcher/backendv2/internal/redirect"
 	"snatcher/backendv2/internal/router"
@@ -24,7 +34,18 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	// Set up JSON structured logger before any other action so all subsequent
+	// log calls (including from imported packages) use the correct handler.
+	slog.SetDefault(observability.NewLogger(os.Getenv("LOG_LEVEL"), os.Getenv("ENV")))
+
+	// Register all Prometheus metrics with the default registry.
+	observability.MustRegisterAll()
+
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("config validation failed", "err", err)
+		os.Exit(1)
+	}
 
 	if cfg.GOMAXPROCS > 0 {
 		runtime.GOMAXPROCS(cfg.GOMAXPROCS)
