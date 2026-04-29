@@ -84,7 +84,7 @@ services:
     # shm_size necessário para o Chromium (Amazon scraping) não crashar no Pi
     shm_size: '128mb'
     volumes:
-      - ./backend/data:/app/data
+      - ./backend-python/data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
       - SCAN_INTERVAL=${SCAN_INTERVAL:-30}
@@ -98,6 +98,7 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - AMZ_TRACKING_ID=${AMZ_TRACKING_ID:-}
       - PUBLIC_URL=${PUBLIC_URL}
+      - BASE_DOMAIN=${BASE_DOMAIN:-snatcher.autibequi.com}
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
@@ -108,11 +109,11 @@ services:
         limits:
           memory: 768m
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/health"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 60s   # Chromium ARM demora mais pra inicializar
+      start_period: 60s   # Chromium ARM demora mais pra inicializar (Python); Go ignora esse delay
 
   redirect:
     image: ghcr.io/autibequi/promosnatcher-redirect:latest
@@ -120,10 +121,11 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     volumes:
-      - ./backend/data:/data:ro   # SQLite read-only — não compete com Python
+      - ./backend-python/data:/data:ro
     environment:
       - DB_PATH=/data/app.db
     restart: unless-stopped
+    profiles: [redirect]   # opt-in: arm64/Pi apenas
     deploy:
       resources:
         limits:
@@ -149,8 +151,6 @@ services:
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
     depends_on:
       backend:
-        condition: service_healthy
-      redirect:
         condition: service_healthy
     restart: unless-stopped
     deploy:

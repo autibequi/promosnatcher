@@ -72,14 +72,14 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./backend-python
       dockerfile: Dockerfile
     container_name: promo-snatcher-backend
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/app:/app/app
-      - ./backend/data:/app/data
+      - ./backend-python/app:/app/app
+      - ./backend-python/data:/app/data
       - ${XDG_RUNTIME_DIR:-/run/user/1000}/podman/podman.sock:/var/run/podman.sock:ro
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
@@ -94,6 +94,7 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - AMZ_TRACKING_ID=${AMZ_TRACKING_ID:-}
       - PUBLIC_URL=${PUBLIC_URL:-http://localhost:6060}
+      - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
       - ML_CLIENT_ID=${ML_CLIENT_ID:-}
       - ML_CLIENT_SECRET=${ML_CLIENT_SECRET:-}
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
@@ -118,6 +119,7 @@ services:
     command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 80"]
     environment:
       - NODE_ENV=development
+      - VITE_BASE_DOMAIN=${BASE_DOMAIN:-localhost}
     restart: unless-stopped
     depends_on:
       - backend

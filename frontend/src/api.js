@@ -93,6 +93,7 @@ export const updateSearchTerm = (id, data) => api.put(`/search-terms/${id}`, dat
 export const deleteSearchTerm = (id) => api.delete(`/search-terms/${id}`)
 export const crawlSearchTerm = (id) => api.post(`/search-terms/${id}/crawl`).then(r => r.data)
 export const getCrawlResults = (termId, params = {}) => api.get(`/search-terms/${termId}/results`, { params }).then(r => r.data)
+export const getCrawlLogs = (params = {}) => api.get('/crawl-logs', { params }).then(r => r.data)
 
 // v2 — Catalog
 export const getCatalogProducts = (params = {}) => api.get('/catalog', { params }).then(r => r.data)
@@ -111,10 +112,13 @@ export const getChannel = (id) => api.get(`/channels/${id}`).then(r => r.data)
 export const updateChannel = (id, data) => api.put(`/channels/${id}`, data).then(r => r.data)
 export const deleteChannel = (id) => api.delete(`/channels/${id}`)
 export const addChannelTarget = (channelId, data) => api.post(`/channels/${channelId}/targets`, data).then(r => r.data)
+export const updateChannelTarget = (channelId, targetId, data) => api.patch(`/channels/${channelId}/targets/${targetId}`, data).then(r => r.data)
 export const removeChannelTarget = (channelId, targetId) => api.delete(`/channels/${channelId}/targets/${targetId}`)
 export const addChannelRule = (channelId, data) => api.post(`/channels/${channelId}/rules`, data).then(r => r.data)
 export const updateChannelRule = (channelId, ruleId, data) => api.put(`/channels/${channelId}/rules/${ruleId}`, data).then(r => r.data)
 export const deleteChannelRule = (channelId, ruleId) => api.delete(`/channels/${channelId}/rules/${ruleId}`)
+export const sendChannelDigest = (channelId) => api.post(`/channels/${channelId}/send-digest`).then(r => r.data)
+export const sendChannelProduct = (channelId, productId) => api.post(`/channels/${channelId}/send-product`, { product_id: productId }).then(r => r.data)
 
 // v2 — Accounts (multi-WA/TG)
 export const getWAHealth = () => api.get('/accounts/wa/health').then(r => r.data)
@@ -135,5 +139,10 @@ export const createTGAccount = (data) => api.post('/accounts/tg', data).then(r =
 export const updateTGAccount = (id, data) => api.put(`/accounts/tg/${id}`, data).then(r => r.data)
 export const deleteTGAccount = (id) => api.delete(`/accounts/tg/${id}`)
 export const testTGAccount = (id) => api.post(`/accounts/tg/${id}/test`).then(r => r.data)
+
+// Broadcast
+export const getBroadcasts = () => api.get('/broadcast').then(r => r.data)
+export const sendBroadcast = (data) => api.post('/broadcast', data).then(r => r.data)
+export const deleteBroadcast = (id) => api.delete(`/broadcast/${id}`).then(r => r.data)
 
 export default api

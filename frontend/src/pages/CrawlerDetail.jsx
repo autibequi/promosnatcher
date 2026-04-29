@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSearchTerms, updateSearchTerm, deleteSearchTerm, crawlSearchTerm, getCrawlResults } from '../api'
+import { getSearchTerms, updateSearchTerm, deleteSearchTerm, crawlSearchTerm, getCrawlResults, getConfig } from '../api'
 
 export default function CrawlerDetail() {
   const { id } = useParams()
@@ -12,6 +12,7 @@ export default function CrawlerDetail() {
   const [editForm, setEditForm] = useState({})
 
   const { data: terms = [] } = useQuery({ queryKey: ['searchTerms'], queryFn: getSearchTerms })
+  const { data: config } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const term = terms.find(t => t.id === Number(id))
 
   const { data: resultsData, isLoading: loadingResults } = useQuery({
@@ -20,6 +21,8 @@ export default function CrawlerDetail() {
     enabled: !!id,
     refetchInterval: 15_000,
   })
+
+  const parsedQueries = (() => { try { return JSON.parse(term?.queries || '[]') } catch { return [] } })()
 
   const update = useMutation({
     mutationFn: (data) => updateSearchTerm(id, data),
@@ -67,12 +70,23 @@ export default function CrawlerDetail() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">"{term.query}"</h1>
+          {parsedQueries.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {parsedQueries.map(q => (
+                <span key={q} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">"{q}"</span>
+              ))}
+            </div>
+          )}
           <p className="text-gray-500 text-sm mt-1">
             R${term.min_val.toFixed(0)}–R${term.max_val.toFixed(0)} | {term.sources} | cada {term.crawl_interval}min
           </p>
+          <div className="flex gap-2 mt-1">
+            {term.ml_affiliate_tool_id && <span className="text-xs bg-yellow-900/40 text-yellow-400 px-2 py-0.5 rounded-full">ML: {term.ml_affiliate_tool_id}</span>}
+            {term.amz_tracking_id && <span className="text-xs bg-orange-900/40 text-orange-400 px-2 py-0.5 rounded-full">AMZ: {term.amz_tracking_id}</span>}
+          </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setEditing(e => !e); setEditForm({ query: term.query, min_val: term.min_val, max_val: term.max_val, sources: term.sources, crawl_interval: term.crawl_interval }) }}
+          <button onClick={() => { setEditing(e => !e); setEditForm({ query: term.query, queries: parsedQueries, min_val: term.min_val, max_val: term.max_val, sources: term.sources, crawl_interval: term.crawl_interval, ml_affiliate_tool_id: term.ml_affiliate_tool_id || '', amz_tracking_id: term.amz_tracking_id || '' }) }}
             className="bg-gray-800 hover:bg-gray-700 text-white text-sm px-3 py-2 rounded-lg transition-colors">Editar</button>
           <button onClick={() => toggle.mutate()}
             className="bg-gray-800 hover:bg-gray-700 text-white text-sm px-3 py-2 rounded-lg transition-colors">
@@ -92,8 +106,37 @@ export default function CrawlerDetail() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
-              <label className="text-xs text-gray-400">Busca</label>
+              <label className="text-xs text-gray-400">Query principal</label>
               <input className={field} value={editForm.query || ''} onChange={e => setEditForm(f => ({ ...f, query: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs text-gray-400 block mb-1">Queries adicionais</label>
+              <div className="space-y-1">
+                {(editForm.queries || []).map((q, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      className={field}
+                      value={q}
+                      onChange={e => setEditForm(f => {
+                        const qs = [...(f.queries || [])]
+                        qs[i] = e.target.value
+                        return { ...f, queries: qs }
+                      })}
+                      placeholder={`Termo alternativo ${i + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(f => ({ ...f, queries: (f.queries || []).filter((_, j) => j !== i) }))}
+                      className="text-gray-500 hover:text-red-400 px-2"
+                    >×</button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEditForm(f => ({ ...f, queries: [...(f.queries || []), ''] }))}
+                  className="text-xs text-blue-400 hover:text-blue-300 mt-1"
+                >+ Adicionar query</button>
+              </div>
             </div>
             <div>
               <label className="text-xs text-gray-400">Min (R$)</label>
@@ -112,6 +155,16 @@ export default function CrawlerDetail() {
             <div>
               <label className="text-xs text-gray-400">Intervalo (min)</label>
               <input className={field} type="number" min={5} value={editForm.crawl_interval} onChange={e => setEditForm(f => ({ ...f, crawl_interval: +e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">ML Afiliado Tool ID</label>
+              <input className={field} value={editForm.ml_affiliate_tool_id || ''} onChange={e => setEditForm(f => ({ ...f, ml_affiliate_tool_id: e.target.value }))}
+                placeholder={config?.ml_affiliate_tool_id ? `usar global (${config.ml_affiliate_tool_id})` : 'usar global'} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">AMZ Tracking ID</label>
+              <input className={field} value={editForm.amz_tracking_id || ''} onChange={e => setEditForm(f => ({ ...f, amz_tracking_id: e.target.value }))}
+                placeholder={config?.amz_tracking_id ? `usar global (${config.amz_tracking_id})` : 'usar global'} />
             </div>
           </div>
           <div className="flex gap-2">

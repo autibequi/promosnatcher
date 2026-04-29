@@ -67,9 +67,6 @@ export default function Groups() {
               onChange={e => setSelectedAccount(+e.target.value)}>
               {connectedAccounts.map(a => <option key={a.id} value={a.id}>📱 {a.name}</option>)}
             </select>
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-2 rounded-lg border border-gray-700 whitespace-nowrap" title="Prefixo configurado na conta">
-              {(connectedAccounts.find(a => a.id === (selectedAccount || connectedAccounts[0]?.id))?.group_prefix || 'Snatcher')} -
-            </span>
             <input className={`${field} flex-1`} placeholder="Nome do grupo" value={newGroupName}
               onChange={e => setNewGroupName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && newGroupName.trim() && createGroup.mutate({

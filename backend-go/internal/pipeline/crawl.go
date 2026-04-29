@@ -1,0 +1,162 @@
+package pipeline
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log/slog"
+	"snatcher/backendv2/internal/models"
+	"snatcher/backendv2/internal/store"
+	"sync"
+	"time"
+)
+
+// Item é o resultado bruto de um scraper.
+type Item struct {
+	Title    string
+	Price    float64
+	URL      string
+	ImageURL string
+	Source   string
+}
+
+// Scraper é a interface que cada marketplace implementa.
+type Scraper interface {
+	Search(ctx context.Context, query string, minVal, maxVal float64) ([]Item, error)
+}
+
+// CrawlSearchTerm executa o crawl de um SearchTerm e salva os resultados.
+func CrawlSearchTerm(ctx context.Context, st store.Store, term models.SearchTerm, scrapers map[string]Scraper) error {
+	log := slog.With("term_id", term.ID, "query", term.Query)
+
+	logID, err := st.InsertCrawlLog(models.CrawlLog{
+		SearchTermID: term.ID,
+		Status:       "running",
+	})
+	if err != nil {
+		return fmt.Errorf("insert crawl log: %w", err)
+	}
+
+	var (
+		mu      sync.Mutex
+		mlCount int
+		amzCount int
+		allItems []Item
+		crawlErr error
+	)
+
+	queries := term.GetQueries()
+	sem := make(chan struct{}, 3)
+	var wg sync.WaitGroup
+
+	for _, q := range queries {
+		for source, scraper := range scrapers {
+			if term.Sources != "all" && term.Sources != source {
+				continue
+			}
+			q, source, scraper := q, source, scraper
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				items, err := scraper.Search(ctx, q, term.MinVal, term.MaxVal)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					log.Warn("scraper error", "source", source, "query", q, "err", err)
+					return
+				}
+				for i := range items {
+					items[i].Source = source
+				}
+				allItems = append(allItems, items...)
+				switch source {
+				case "mercadolivre":
+					mlCount += len(items)
+				case "amazon":
+					amzCount += len(items)
+				}
+			}()
+		}
+	}
+	wg.Wait()
+
+	// Dedup por URL e salvar
+	seen := map[string]bool{}
+	for _, item := range allItems {
+		if seen[item.URL] {
+			continue
+		}
+		already, _ := st.URLAlreadyCrawled(term.ID, item.URL)
+		if already {
+			seen[item.URL] = true
+			continue
+		}
+		seen[item.URL] = true
+
+		var imgNull models.NullString
+		if item.ImageURL != "" {
+			imgNull = models.NullString{NullString: sql.NullString{String: item.ImageURL, Valid: true}}
+		}
+		_, err := st.InsertCrawlResult(models.CrawlResult{
+			SearchTermID: term.ID,
+			Title:        item.Title,
+			Price:        item.Price,
+			URL:          item.URL,
+			ImageURL:     imgNull,
+			Source:       item.Source,
+		})
+		if err != nil {
+			log.Error("insert crawl result", "err", err)
+		}
+	}
+
+	now := time.Now()
+	cl := models.CrawlLog{
+		ID:         logID,
+		SearchTermID: term.ID,
+		FinishedAt: models.NullTime{NullTime: sql.NullTime{Time: now, Valid: true}},
+		MLCount:    mlCount,
+		AmzCount:   amzCount,
+	}
+	if crawlErr != nil {
+		cl.Status = "error"
+		cl.ErrorMsg = models.NullString{NullString: sql.NullString{String: crawlErr.Error(), Valid: true}}
+	} else {
+		cl.Status = "done"
+	}
+	_ = st.UpdateCrawlLog(cl)
+	_ = st.TouchSearchTerm(term.ID, mlCount+amzCount)
+
+	return crawlErr
+}
+
+// CrawlAllTerms executa o crawl de todos os SearchTerms ativos.
+func CrawlAllTerms(ctx context.Context, st store.Store, scrapers map[string]Scraper) error {
+	terms, err := st.ListSearchTerms()
+	if err != nil {
+		return err
+	}
+
+	sem := make(chan struct{}, 3)
+	var wg sync.WaitGroup
+	for _, term := range terms {
+		if !term.Active {
+			continue
+		}
+		term := term
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if err := CrawlSearchTerm(ctx, st, term, scrapers); err != nil {
+				slog.Error("crawl term", "term_id", term.ID, "err", err)
+			}
+		}()
+	}
+	wg.Wait()
+	return nil
+}
