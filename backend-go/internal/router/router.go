@@ -20,6 +20,7 @@ func Build(
 	runner *pipeline.Runner,
 	sched *scheduler.Scheduler,
 	scrapers map[string]pipeline.Scraper,
+	adapters pipeline.AdapterRegistry,
 	jwtSecret string,
 	adminUser, adminPass string,
 ) http.Handler {
@@ -33,7 +34,7 @@ func Build(
 	scan := handlers.NewScan(st, runner, sched)
 	terms := handlers.NewSearchTerms(st, scrapers)
 	catalog := handlers.NewCatalog(st)
-	channels := handlers.NewChannels(st)
+	channels := handlers.NewChannels(st, adapters)
 	config := handlers.NewConfig(st)
 	canal := handlers.NewCanal(st)
 	accounts := handlers.NewAccounts(st)
@@ -53,6 +54,29 @@ func Build(
 	r.Get("/api/auth/me", auth.Me)
 
 	r.Get("/r/{shortID}", rd.Handler())
+	// Redirect para variantes do catálogo v2
+	r.Get("/v/{shortID}", func(w http.ResponseWriter, r *http.Request) {
+		shortID := r.PathValue("shortID")
+		v, found, err := st.GetVariantByShortID(shortID)
+		if err != nil || !found {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		// Affiliate URL
+		cfg, _ := st.GetConfig()
+		finalURL := v.URL
+		if cfg.AmzTrackingID.Valid && cfg.AmzTrackingID.String != "" && v.Source == "amazon" {
+			finalURL = v.URL + "?tag=" + cfg.AmzTrackingID.String
+		} else if cfg.MLAffiliateToolID.Valid && cfg.MLAffiliateToolID.String != "" && v.Source == "mercadolivre" {
+			sep := "?"
+			if len(v.URL) > 0 {
+				sep = "&"
+			}
+			finalURL = v.URL + sep + "matt_tool=" + cfg.MLAffiliateToolID.String + "&matt_source=affiliate"
+		}
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		http.Redirect(w, r, finalURL, http.StatusFound)
+	})
 
 	r.Get("/canal/{slug}", canal.GroupPicker)
 	r.Get("/canal/{slug}/preview", canal.Preview)
@@ -134,6 +158,8 @@ func Build(
 		r.Delete("/api/channels/{id}/targets/{target_id}", channels.DeleteTarget)
 		r.Post("/api/channels/{id}/rules", channels.CreateRule)
 		r.Delete("/api/channels/{id}/rules/{rule_id}", channels.DeleteRule)
+		r.Post("/api/channels/{id}/send-digest", channels.SendDigest)
+		r.Post("/api/channels/{id}/send-product", channels.SendProduct)
 
 		// Config
 		r.Get("/api/config", config.Get)
@@ -147,7 +173,9 @@ func Build(
 		r.Delete("/api/accounts/wa/{id}", accounts.DeleteWA)
 		r.Get("/api/accounts/wa/{id}/status", accounts.WAStatus)
 		r.Post("/api/accounts/wa/{id}/session/start", accounts.WAStartSession)
-		r.Post("/api/accounts/wa/{id}/session/logout", accounts.WAStartSession) // placeholder
+		r.Post("/api/accounts/wa/{id}/session/logout", accounts.WAStartSession)
+		r.Get("/api/accounts/wa/{id}/groups", accounts.WAGroups)
+		r.Post("/api/accounts/wa/{id}/groups", accounts.WACreateGroup)
 
 		// Accounts — Telegram
 		r.Get("/api/accounts/tg", accounts.ListTG)
@@ -168,8 +196,9 @@ func Build(
 		// Analytics
 		r.Get("/api/analytics/summary", analytics.Summary)
 
-		// Telegram chats discovery
+		// Telegram chats discovery (dois paths — o frontend usa /api/config/tg/chats)
 		r.Get("/api/telegram/chats", accounts.ListTGChats)
+		r.Get("/api/config/tg/chats", accounts.ListTGChats)
 
 		// Legacy v1 groups
 		r.Get("/api/groups", accounts.ListGroups)

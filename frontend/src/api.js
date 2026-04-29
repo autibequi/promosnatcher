@@ -117,6 +117,8 @@ export const removeChannelTarget = (channelId, targetId) => api.delete(`/channel
 export const addChannelRule = (channelId, data) => api.post(`/channels/${channelId}/rules`, data).then(r => r.data)
 export const updateChannelRule = (channelId, ruleId, data) => api.put(`/channels/${channelId}/rules/${ruleId}`, data).then(r => r.data)
 export const deleteChannelRule = (channelId, ruleId) => api.delete(`/channels/${channelId}/rules/${ruleId}`)
+export const sendChannelDigest = (channelId) => api.post(`/channels/${channelId}/send-digest`).then(r => r.data)
+export const sendChannelProduct = (channelId, productId) => api.post(`/channels/${channelId}/send-product`, { product_id: productId }).then(r => r.data)
 
 // v2 — Accounts (multi-WA/TG)
 export const getWAHealth = () => api.get('/accounts/wa/health').then(r => r.data)

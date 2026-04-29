@@ -20,7 +20,7 @@ func (h *CatalogHandler) List(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
 	if limit == 0 {
-		limit = 50
+		limit = 30
 	}
 
 	products, err := h.store.ListCatalogProducts(limit, offset)
@@ -31,7 +31,14 @@ func (h *CatalogHandler) List(w http.ResponseWriter, r *http.Request) {
 	if products == nil {
 		products = []models.CatalogProduct{}
 	}
-	writeJSON(w, http.StatusOK, products)
+
+	total, _ := h.store.CountCatalogProducts()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  products,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 func (h *CatalogHandler) Get(w http.ResponseWriter, r *http.Request) {

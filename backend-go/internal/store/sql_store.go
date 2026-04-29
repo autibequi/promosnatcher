@@ -1,6 +1,7 @@
 package store
 
 import (
+	crand "crypto/rand"
 	"database/sql"
 	"fmt"
 	"snatcher/backendv2/internal/models"
@@ -253,6 +254,12 @@ func (s *SQLStore) ListCatalogProducts(limit, offset int) ([]models.CatalogProdu
 	return out, err
 }
 
+func (s *SQLStore) CountCatalogProducts() (int64, error) {
+	var count int64
+	err := s.db.Get(&count, `SELECT COUNT(*) FROM catalogproduct`)
+	return count, err
+}
+
 func (s *SQLStore) GetCatalogProduct(id int64) (models.CatalogProduct, error) {
 	var p models.CatalogProduct
 	err := s.db.Get(&p, `SELECT * FROM catalogproduct WHERE id = ?`, id)
@@ -296,13 +303,49 @@ func (s *SQLStore) GetVariantByURL(url string) (models.CatalogVariant, bool, err
 }
 
 func (s *SQLStore) CreateCatalogVariant(v models.CatalogVariant) (int64, error) {
+	// Gera short_id se não tiver
+	if !v.ShortID.Valid || v.ShortID.String == "" {
+		v.ShortID = models.NullString{NullString: sql.NullString{String: genShortID(), Valid: true}}
+	}
 	res, err := s.db.NamedExec(`
-		INSERT INTO catalogvariant (catalog_product_id, title, variant_label, price, url, image_url, source)
-		VALUES (:catalog_product_id, :title, :variant_label, :price, :url, :image_url, :source)`, v)
+		INSERT INTO catalogvariant (catalog_product_id, title, variant_label, price, url, short_id, image_url, source)
+		VALUES (:catalog_product_id, :title, :variant_label, :price, :url, :short_id, :image_url, :source)`, v)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+func (s *SQLStore) GetShortIDByURL(url string) string {
+	var shortID string
+	_ = s.db.Get(&shortID, `SELECT COALESCE(short_id,'') FROM catalogvariant WHERE url = ? LIMIT 1`, url)
+	if shortID != "" {
+		return shortID
+	}
+	// Gera e persiste on-demand
+	shortID = genShortID()
+	_, _ = s.db.Exec(`UPDATE catalogvariant SET short_id = ? WHERE url = ? AND (short_id IS NULL OR short_id = '')`, shortID, url)
+	return shortID
+}
+
+func (s *SQLStore) GetVariantByShortID(shortID string) (models.CatalogVariant, bool, error) {
+	var v models.CatalogVariant
+	err := s.db.Get(&v, `SELECT * FROM catalogvariant WHERE short_id = ? LIMIT 1`, shortID)
+	if err == sql.ErrNoRows {
+		return v, false, nil
+	}
+	return v, err == nil, err
+}
+
+func genShortID() string {
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	raw := make([]byte, 7)
+	_, _ = crand.Read(raw)
+	b := make([]byte, 7)
+	for i, r := range raw {
+		b[i] = chars[int(r)%len(chars)]
+	}
+	return string(b)
 }
 
 func (s *SQLStore) UpdateCatalogVariant(v models.CatalogVariant) error {

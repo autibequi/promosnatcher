@@ -1,18 +1,66 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"snatcher/backendv2/internal/models"
+	"snatcher/backendv2/internal/pipeline"
 	"snatcher/backendv2/internal/store"
+	"strings"
+	"time"
 )
 
-type ChannelsHandler struct {
-	store store.Store
+// evolutionSender implementa MessageSender usando Evolution API diretamente.
+type evolutionSender struct{ baseURL, apiKey, instance string }
+
+func newEvolutionSender(baseURL, apiKey, instance string) *evolutionSender {
+	return &evolutionSender{baseURL: baseURL, apiKey: apiKey, instance: instance}
 }
 
-func NewChannels(st store.Store) *ChannelsHandler {
-	return &ChannelsHandler{store: st}
+func (e *evolutionSender) Provider() string { return "whatsapp" }
+
+func (e *evolutionSender) SendText(ctx context.Context, chatID, text string) error {
+	body := map[string]any{"number": chatID, "text": text}
+	return e.post(ctx, "/message/sendText/"+e.instance, body)
+}
+
+func (e *evolutionSender) SendImage(ctx context.Context, chatID, imageURL, caption string) error {
+	body := map[string]any{"number": chatID, "mediatype": "image", "media": imageURL, "caption": caption}
+	return e.post(ctx, "/message/sendMedia/"+e.instance, body)
+}
+
+func (e *evolutionSender) post(ctx context.Context, path string, payload any) error {
+	b, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, "POST", e.baseURL+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apiKey", e.apiKey)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("evolution %s: %d — %s", path, resp.StatusCode, string(b))
+	}
+	return nil
+}
+
+type ChannelsHandler struct {
+	store    store.Store
+	adapters pipeline.AdapterRegistry
+}
+
+func NewChannels(st store.Store, adapters pipeline.AdapterRegistry) *ChannelsHandler {
+	return &ChannelsHandler{store: st, adapters: adapters}
 }
 
 func (h *ChannelsHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -135,24 +183,58 @@ func (h *ChannelsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	var req channelRequest
-	if err := decodeBody(r, &req); err != nil {
+	// Carrega estado atual — merge com os campos enviados (evita sobrescrever com zero values)
+	current, err := h.store.GetChannel(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	// Decodifica como mapa genérico para saber quais campos foram enviados
+	var patch map[string]any
+	if err := decodeBody(r, &patch); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	c := req.toModel()
-	c.ID = id
-	if c.Slug.Valid {
-		if err := store.ValidSlug(c.Slug.String); err != nil {
+
+	// Aplica apenas os campos presentes no body
+	if v, ok := patch["name"].(string); ok {
+		current.Name = v
+	}
+	if v, ok := patch["description"].(string); ok {
+		current.Description = v
+	}
+	if v, ok := patch["active"].(bool); ok {
+		current.Active = v
+	}
+	if v, ok := patch["digest_mode"].(bool); ok {
+		current.DigestMode = v
+	}
+	if v, ok := patch["digest_max_items"].(float64); ok {
+		current.DigestMaxItems = int(v)
+	}
+	if v, ok := patch["send_start_hour"].(float64); ok {
+		current.SendStartHour = int(v)
+	}
+	if v, ok := patch["send_end_hour"].(float64); ok {
+		current.SendEndHour = int(v)
+	}
+	if v, ok := patch["slug"].(string); ok {
+		if err := store.ValidSlug(v); err != nil {
 			writeErr(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		current.Slug = models.NullString{NullString: sql.NullString{String: v, Valid: true}}
 	}
-	if err := h.store.UpdateChannel(c); err != nil {
+	if v, ok := patch["message_template"].(string); ok {
+		current.MessageTemplate = models.NullString{NullString: sql.NullString{String: v, Valid: v != ""}}
+	}
+
+	if err := h.store.UpdateChannel(current); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, c)
+	writeJSON(w, http.StatusOK, current)
 }
 
 func (h *ChannelsHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -319,4 +401,223 @@ func (h *ChannelsHandler) DeleteRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SendDigest envia o digest consolidado do canal manualmente.
+func (h *ChannelsHandler) SendDigest(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	ch, err := h.store.GetChannel(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	targets, _ := h.store.ListChannelTargets(id)
+
+	maxItems := ch.DigestMaxItems
+	if maxItems == 0 {
+		maxItems = 5
+	}
+	// Busca os produtos do catálogo ordenados por preço
+	catalog, _ := h.store.ListCatalogProducts(maxItems, 0)
+	if len(catalog) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "no products"})
+		return
+	}
+
+	// AppConfig para affiliate tags e short links
+	appCfg, _ := h.store.GetConfig()
+	scheme := r.URL.Scheme; if scheme == "" { scheme = "https" }; publicURL := scheme + "://" + r.Host
+	if publicURL == "://" {
+		publicURL = "https://beta.autibequi.com"
+	}
+
+	// Monta mensagem digest
+	channelName := ch.Name
+	if channelName == "" {
+		channelName = "Snatcher"
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("🔥 *Top %d ofertas — %s*\n\n", len(catalog), channelName))
+	for i, p := range catalog {
+		price := 0.0
+		if p.LowestPrice.Valid {
+			price = p.LowestPrice.Float64
+		}
+		rawURL := ""
+		if p.LowestPriceURL.Valid {
+			rawURL = p.LowestPriceURL.String
+		}
+		source := ""
+		if p.LowestPriceSource.Valid {
+			source = p.LowestPriceSource.String
+		}
+		// Usa short link se configurado, senão affiliate direto
+		shortID := h.store.GetShortIDByURL(rawURL)
+		finalURL := buildProductURL(rawURL, source, shortID, publicURL, appCfg)
+		sb.WriteString(fmt.Sprintf("%d. *%s*\n💰 R$ %.2f\n🔗 %s\n\n", i+1, p.CanonicalName, price, finalURL))
+	}
+	msg := sb.String()
+
+	cfg, _ := h.store.GetConfig()
+	waAccounts, _ := h.store.ListWAAccounts()
+
+	sent := 0
+	for _, target := range targets {
+		if target.Status != "ok" {
+			continue
+		}
+		adapter := h.resolveAdapter(target, cfg, waAccounts)
+		if adapter == nil {
+			continue
+		}
+		if err := adapter.SendText(r.Context(), target.ChatID, msg); err == nil {
+			sent++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "sent", "targets": sent, "products": len(catalog)})
+}
+
+// SendProduct envia um produto específico manualmente para todos os targets do canal.
+func (h *ChannelsHandler) SendProduct(w http.ResponseWriter, r *http.Request) {
+	channelID, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		ProductID int64 `json:"product_id"`
+	}
+	if err := decodeBody(r, &body); err != nil || body.ProductID == 0 {
+		writeErr(w, http.StatusBadRequest, "product_id required")
+		return
+	}
+
+	targets, _ := h.store.ListChannelTargets(channelID)
+	ch, _ := h.store.GetChannel(channelID)
+	p, err := h.store.GetCatalogProduct(body.ProductID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "product not found")
+		return
+	}
+
+	tpl := "🔥 *{title}*\n💰 R$ {price}\n🔗 {url}"
+	if ch.MessageTemplate.Valid && ch.MessageTemplate.String != "" {
+		tpl = ch.MessageTemplate.String
+	}
+	price := 0.0
+	if p.LowestPrice.Valid {
+		price = p.LowestPrice.Float64
+	}
+	rawURL := ""
+	source := ""
+	if p.LowestPriceURL.Valid {
+		rawURL = p.LowestPriceURL.String
+	}
+	if p.LowestPriceSource.Valid {
+		source = p.LowestPriceSource.String
+	}
+	cfg, _ := h.store.GetConfig()
+	scheme := r.URL.Scheme; if scheme == "" { scheme = "https" }; publicURL := scheme + "://" + r.Host
+	if publicURL == "://" {
+		publicURL = "https://beta.autibequi.com"
+	}
+	shortID := h.store.GetShortIDByURL(rawURL)
+	finalURL := buildProductURL(rawURL, source, shortID, publicURL, cfg)
+	msg := strings.NewReplacer(
+		"{title}", p.CanonicalName,
+		"{price:.2f}", fmt.Sprintf("%.2f", price),
+		"{price}", fmt.Sprintf("%.2f", price),
+		"{url}", finalURL,
+	).Replace(tpl)
+
+	waAccounts, _ := h.store.ListWAAccounts()
+
+	sent := 0
+	for _, target := range targets {
+		if target.Status != "ok" {
+			continue
+		}
+		adapter := h.resolveAdapter(target, cfg, waAccounts)
+		if adapter == nil {
+			continue
+		}
+		var sendErr error
+		if p.ImageURL.Valid && p.ImageURL.String != "" {
+			sendErr = adapter.SendImage(r.Context(), target.ChatID, p.ImageURL.String, msg)
+		} else {
+			sendErr = adapter.SendText(r.Context(), target.ChatID, msg)
+		}
+		if sendErr == nil {
+			sent++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "sent", "targets": sent})
+}
+
+// buildProductURL retorna URL com short link ou affiliate direto.
+func buildProductURL(rawURL, source, shortID, publicBaseURL string, cfg models.AppConfig) string {
+	if cfg.UseShortLinks && shortID != "" && publicBaseURL != "" {
+		return publicBaseURL + "/v/" + shortID
+	}
+	return applyAffiliateURL(rawURL, source, cfg)
+}
+
+// applyAffiliateURL adiciona parâmetros de afiliado na URL baseado no source.
+func applyAffiliateURL(rawURL, source string, cfg models.AppConfig) string {
+	switch source {
+	case "amazon":
+		if cfg.AmzTrackingID.Valid && cfg.AmzTrackingID.String != "" {
+			if strings.Contains(rawURL, "?") {
+				return rawURL + "&tag=" + cfg.AmzTrackingID.String
+			}
+			return rawURL + "?tag=" + cfg.AmzTrackingID.String
+		}
+	case "mercadolivre":
+		if cfg.MLAffiliateToolID.Valid && cfg.MLAffiliateToolID.String != "" {
+			sep := "?"
+			if strings.Contains(rawURL, "?") {
+				sep = "&"
+			}
+			return rawURL + sep + "matt_tool=" + cfg.MLAffiliateToolID.String + "&matt_source=affiliate"
+		}
+	}
+	return rawURL
+}
+
+// resolveAdapter cria um adapter dinâmico para o target usando a conta WA correta.
+func (h *ChannelsHandler) resolveAdapter(target models.ChannelTarget, cfg models.AppConfig, waAccounts []models.WAAccount) pipeline.MessageSender {
+	if target.Provider == "whatsapp" {
+		// Usa a primeira conta WA ativa com URL configurada
+		for _, acc := range waAccounts {
+			if !acc.Active || !acc.BaseURL.Valid || acc.BaseURL.String == "" {
+				continue
+			}
+			apiKey := acc.APIKey.String
+			if !acc.APIKey.Valid {
+				apiKey = cfg.WAApiKey.String
+			}
+			instance := acc.Instance.String
+			if !acc.Instance.Valid {
+				instance = cfg.WAInstance.String
+			}
+			return newEvolutionSender(acc.BaseURL.String, apiKey, instance)
+		}
+		// Fallback: AppConfig global
+		if cfg.WABaseURL.Valid {
+			return newEvolutionSender(
+				cfg.WABaseURL.String,
+				cfg.WAApiKey.String,
+				cfg.WAInstance.String,
+			)
+		}
+	}
+	// Telegram ou outros — usa adapter registrado
+	if a, ok := h.adapters[target.Provider]; ok {
+		return a
+	}
+	return nil
 }

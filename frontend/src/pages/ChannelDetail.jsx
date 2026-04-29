@@ -6,6 +6,7 @@ import {
   addChannelTarget, updateChannelTarget, removeChannelTarget,
   addChannelRule, deleteChannelRule,
   getCatalogProducts, getWAGroups, getTGChats,
+  sendChannelDigest, sendChannelProduct,
 } from '../api'
 
 function TargetPicker({ field, onAdd, existingTargets = [] }) {
@@ -73,7 +74,7 @@ const MATCH_TYPES = [
   { value: 'search_term', label: 'Por termo de busca (ID)' },
 ]
 
-function CatalogPreview({ rules }) {
+function CatalogPreview({ rules, onSendProduct }) {
   const firstTagRule = rules.find(r => r.match_type === 'tag' && r.active)
   const firstBrandRule = rules.find(r => r.match_type === 'brand' && r.active)
   const hasAllRule = rules.some(r => r.match_type === 'all' && r.active)
@@ -113,6 +114,13 @@ function CatalogPreview({ rules }) {
               </div>
             </div>
             <span className="text-green-400 font-medium whitespace-nowrap">R$ {(p.lowest_price || 0).toFixed(2).replace('.', ',')}</span>
+            {onSendProduct && (
+              <button onClick={() => onSendProduct(p.id)}
+                className="text-xs text-gray-400 hover:text-green-400 px-2 py-1 rounded hover:bg-gray-700 whitespace-nowrap"
+                title="Enviar este produto agora">
+                📤
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -369,6 +377,9 @@ export default function ChannelDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['channel', id] }),
   })
 
+  const sendDigest = useMutation({ mutationFn: () => sendChannelDigest(id) })
+  const sendProduct = useMutation({ mutationFn: (productId) => sendChannelProduct(id, productId) })
+
   const field = 'bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors'
   const badge = 'text-xs px-2 py-0.5 rounded-full font-medium'
 
@@ -450,11 +461,20 @@ export default function ChannelDetail() {
                 : 'Envia 1 mensagem por produto individualmente'}
             </p>
           </div>
-          <button type="button" onClick={() => update.mutate({ digest_mode: !channel.digest_mode })}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channel.digest_mode ? 'bg-green-600' : 'bg-gray-700'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${channel.digest_mode ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
+          <div className="flex items-center gap-3">
+            {channel.digest_mode && (
+              <button onClick={() => sendDigest.mutate()} disabled={sendDigest.isPending}
+                className="text-xs bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
+                {sendDigest.isPending ? '...' : '📤 Enviar digest agora'}
+              </button>
+            )}
+            <button type="button" onClick={() => update.mutate({ digest_mode: !channel.digest_mode })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channel.digest_mode ? 'bg-green-600' : 'bg-gray-700'}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${channel.digest_mode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
         </div>
+        {sendDigest.isSuccess && <p className="text-xs text-green-400 mt-2">✓ Digest enviado para {sendDigest.data?.targets} target(s)</p>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -558,7 +578,7 @@ export default function ChannelDetail() {
       {/* Catalog preview */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mt-6">
         <h2 className="text-sm font-medium text-gray-300 mb-3">Produtos que seriam enviados</h2>
-        <CatalogPreview rules={channel.rules || []} />
+        <CatalogPreview rules={channel.rules || []} onSendProduct={(pid) => sendProduct.mutate(pid)} />
       </div>
 
       </>}

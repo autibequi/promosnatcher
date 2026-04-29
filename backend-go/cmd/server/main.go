@@ -109,7 +109,7 @@ func main() {
 	defer sched.Stop()
 
 	// HTTP server
-	h := router.Build(st, rd, runner, sched, scraperMap, cfg.JWTSecret, cfg.AdminUser, cfg.AdminPass)
+	h := router.Build(st, rd, runner, sched, scraperMap, adapterMap, cfg.JWTSecret, cfg.AdminUser, cfg.AdminPass)
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      h,

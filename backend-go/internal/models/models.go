@@ -187,6 +187,7 @@ type CatalogVariant struct {
 	VariantLabel     NullString `db:"variant_label" json:"variant_label,omitempty"`
 	Price            float64        `db:"price" json:"price"`
 	URL              string         `db:"url" json:"url"`
+	ShortID          NullString `db:"short_id" json:"short_id,omitempty"`
 	ImageURL         NullString `db:"image_url" json:"image_url,omitempty"`
 	Source           string         `db:"source" json:"source"`
 	FirstSeenAt      time.Time      `db:"first_seen_at" json:"first_seen_at"`

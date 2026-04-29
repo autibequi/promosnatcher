@@ -44,11 +44,14 @@ type Store interface {
 
 	// Catalog
 	ListCatalogProducts(limit, offset int) ([]models.CatalogProduct, error)
+	CountCatalogProducts() (int64, error)
 	GetCatalogProduct(id int64) (models.CatalogProduct, error)
 	CreateCatalogProduct(p models.CatalogProduct) (int64, error)
 	UpdateCatalogProduct(p models.CatalogProduct) error
 	DeleteCatalogProduct(id int64) error
 	GetVariantByURL(url string) (models.CatalogVariant, bool, error)
+	GetVariantByShortID(shortID string) (models.CatalogVariant, bool, error)
+	GetShortIDByURL(url string) string
 	CreateCatalogVariant(v models.CatalogVariant) (int64, error)
 	UpdateCatalogVariant(v models.CatalogVariant) error
 	ListVariantsByProduct(productID int64) ([]models.CatalogVariant, error)

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"snatcher/backendv2/internal/models"
 	"snatcher/backendv2/internal/store"
 	"time"
@@ -35,6 +36,49 @@ func (h *AccountsHandler) ListWA(w http.ResponseWriter, r *http.Request) {
 	if accs == nil {
 		accs = []models.WAAccount{}
 	}
+
+	// Enriquece o status de cada conta com o valor real da Evolution (paralelo, timeout 2s)
+	cfg, _ := h.store.GetConfig()
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	for i := range accs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			a := &accs[i]
+			baseURL, apiKey, instance := a.BaseURL.String, a.APIKey.String, a.Instance.String
+			if !a.BaseURL.Valid || baseURL == "" {
+				if cfg.WABaseURL.Valid {
+					baseURL = cfg.WABaseURL.String
+				}
+				if cfg.WAApiKey.Valid {
+					apiKey = cfg.WAApiKey.String
+				}
+				if cfg.WAInstance.Valid {
+					instance = cfg.WAInstance.String
+				}
+			}
+			if baseURL == "" {
+				return
+			}
+			evo := newEvolutionClient(baseURL, apiKey, instance)
+			status, err := evo.getStatus(ctx)
+			if err != nil {
+				return
+			}
+			if status == "connected" {
+				a.Status = "connected"
+				a.Active = true
+				_ = h.store.UpdateWAAccount(*a)
+			} else if a.Status == "connected" {
+				a.Status = "disconnected"
+				_ = h.store.UpdateWAAccount(*a)
+			}
+		}(i)
+	}
+	wg.Wait()
+
 	writeJSON(w, http.StatusOK, accs)
 }
 
@@ -145,7 +189,145 @@ func (h *AccountsHandler) WAStatus(w http.ResponseWriter, r *http.Request) {
 	if s, ok := mapped[status]; ok {
 		status = s
 	}
+
+	// Atualiza o campo `status` no banco para que a página Grupos detecte corretamente
+	dbStatus := acc.Status
+	if status == "WORKING" && dbStatus != "connected" {
+		acc.Status = "connected"
+		_ = h.store.UpdateWAAccount(acc)
+	} else if (status == "STOPPED" || status == "SCAN_QR_CODE") && dbStatus == "connected" {
+		acc.Status = "disconnected"
+		_ = h.store.UpdateWAAccount(acc)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": status})
+}
+
+// Cache de grupos por accountID — evita timeout do Cloudflare (30s)
+var waGroupsCache sync.Map // int64 → []groupView
+
+type groupView struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Size int    `json:"size"`
+}
+
+// WAGroups lista os grupos WA via Evolution API com cache em memória.
+func (h *AccountsHandler) WAGroups(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	acc, err := h.store.GetWAAccount(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "account not found")
+		return
+	}
+	baseURL, apiKey, instance := acc.BaseURL.String, acc.APIKey.String, acc.Instance.String
+	if !acc.BaseURL.Valid || baseURL == "" {
+		cfg, _ := h.store.GetConfig()
+		if cfg.WABaseURL.Valid {
+			baseURL = cfg.WABaseURL.String
+		}
+		if cfg.WAApiKey.Valid {
+			apiKey = cfg.WAApiKey.String
+		}
+		if cfg.WAInstance.Valid {
+			instance = cfg.WAInstance.String
+		}
+	}
+	if baseURL == "" {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	evo := newEvolutionClient(baseURL, apiKey, instance)
+
+	// Retorna cache imediatamente (evita timeout do Cloudflare)
+	if cached, ok := waGroupsCache.Load(id); ok {
+		writeJSON(w, http.StatusOK, cached)
+		// Refresh em background se cache tiver mais de 5min
+		go func() {
+			groups, err := evo.getGroups(context.Background())
+			if err == nil {
+				waGroupsCache.Store(id, mapGroups(groups))
+			}
+		}()
+		return
+	}
+
+	// Primeiro request: dispara busca em background e retorna [] imediatamente
+	waGroupsCache.Store(id, []groupView{}) // placeholder vazio
+	go func() {
+		groups, err := evo.getGroups(context.Background())
+		if err == nil && groups != nil {
+			waGroupsCache.Store(id, mapGroups(groups))
+		}
+	}()
+	writeJSON(w, http.StatusOK, []groupView{})
+}
+
+func mapGroups(groups []map[string]any) []groupView {
+	out := make([]groupView, 0, len(groups))
+	for _, g := range groups {
+		gid, _ := g["id"].(string)
+		if gid == "" {
+			gid, _ = g["groupJid"].(string)
+		}
+		name, _ := g["subject"].(string)
+		if name == "" {
+			name, _ = g["name"].(string)
+		}
+		size := 0
+		if sv, ok := g["size"].(float64); ok {
+			size = int(sv)
+		}
+		if gid != "" {
+			out = append(out, groupView{ID: gid, Name: name, Size: size})
+		}
+	}
+	return out
+}
+
+// WACreateGroup cria um grupo WA via Evolution API.
+func (h *AccountsHandler) WACreateGroup(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := decodeBody(r, &body); err != nil || body.Name == "" {
+		writeErr(w, http.StatusBadRequest, "name required")
+		return
+	}
+	acc, err := h.store.GetWAAccount(id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "account not found")
+		return
+	}
+	baseURL, apiKey, instance := acc.BaseURL.String, acc.APIKey.String, acc.Instance.String
+	if !acc.BaseURL.Valid || baseURL == "" {
+		cfg, _ := h.store.GetConfig()
+		if cfg.WABaseURL.Valid {
+			baseURL = cfg.WABaseURL.String
+		}
+		if cfg.WAApiKey.Valid {
+			apiKey = cfg.WAApiKey.String
+		}
+		if cfg.WAInstance.Valid {
+			instance = cfg.WAInstance.String
+		}
+	}
+	evo := newEvolutionClient(baseURL, apiKey, instance)
+	result, err := evo.createGroup(r.Context(), body.Name)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
 }
 
 // WAStartSession cria/inicializa a instância na Evolution API e aguarda QR.
@@ -447,6 +629,86 @@ func (e *evoClient) getQRCode(ctx context.Context) (string, error) {
 	return string(body), nil
 }
 
+func (e *evoClient) getGroups(ctx context.Context) ([]map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		e.baseURL+"/group/fetchAllGroups/"+e.instance+"?getParticipants=true", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("apiKey", e.apiKey)
+	// Timeout alto — muitos grupos com participantes pode demorar
+	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var groups []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&groups); err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
+func (e *evoClient) getOwnNumber(ctx context.Context) string {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		e.baseURL+"/instance/fetchInstances?instanceName="+e.instance, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("apiKey", e.apiKey)
+	resp, err := (&http.Client{Timeout: 8 * time.Second}).Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var data []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || len(data) == 0 {
+		return ""
+	}
+	for _, key := range []string{"ownerJid", "number"} {
+		if v, ok := data[0][key].(string); ok && v != "" {
+			if idx := strings.Index(v, "@"); idx != -1 {
+				return v[:idx]
+			}
+			return v
+		}
+	}
+	return ""
+}
+
+func (e *evoClient) createGroup(ctx context.Context, name string) (map[string]any, error) {
+	// Evolution exige pelo menos 1 participante — usa o próprio número
+	participants := []string{}
+	if own := e.getOwnNumber(ctx); own != "" {
+		participants = []string{own}
+	}
+	body := map[string]any{
+		"subject":      name,
+		"participants": participants,
+	}
+	b, _ := json.Marshal(body)
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		e.baseURL+"/group/create/"+e.instance, bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apiKey", e.apiKey)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("evolution create group: %v", result)
+	}
+	return result, nil
+}
+
 func (e *evoClient) createInstance(ctx context.Context) error {
 	body := map[string]any{
 		"instanceName": e.instance,
@@ -474,11 +736,15 @@ func (e *evoClient) createInstance(ctx context.Context) error {
 }
 
 func waAccountFromReq(req waAccountRequest) models.WAAccount {
+	active := req.Active
+	if !active {
+		active = true // default ativo — frontend não manda esse campo
+	}
 	a := models.WAAccount{
 		Name:     req.Name,
 		Provider: req.Provider,
 		Status:   "disconnected",
-		Active:   req.Active,
+		Active:   active,
 	}
 	if a.Provider == "" {
 		a.Provider = "evolution"
