@@ -14,13 +14,14 @@ Não substitui o `docker-compose.yml` raiz (que continua sendo o stack do Pi com
 | Sem `container_name` | Coolify renomeia containers; DNS interno resolve via service-name |
 | Bind `./backend-go/data` → volume `snatcher-data` | Coolify clona o git em diretório efêmero — bind perde dados a cada redeploy |
 | `frontend` em network `nuvem_nuvem` external com alias `snatcher-frontend` | CF Tunnel acessa via DNS interno — alias estável |
-| `nginx.conf` versionado aqui (override) | A imagem `ghcr.io/autibequi/promosnatcher-frontend:latest` foi buildada com hostnames antigos (`promo-snatcher-backend`, `promo-snatcher-evolution`); este override aponta pros service-names atuais (`backend`, `evolution`) sem precisar republicar imagem |
+| `nginx.conf` versionado + `Dockerfile.frontend` que estende a imagem oficial | A imagem `ghcr.io/autibequi/promosnatcher-frontend:latest` foi buildada com hostnames antigos (`promo-snatcher-backend`, `promo-snatcher-evolution`); o Dockerfile local copia o `nginx.conf` corrigido (service-names `backend`/`evolution`) por cima — sem precisar republicar a imagem original. Build é feito pelo Coolify em cada redeploy (rápido, só uma camada COPY) |
 
 ## Estrutura
 
 ```
 coolify/
 ├── docker-compose.yml   evolution + evo-postgres + evo-redis + backend + frontend
+├── Dockerfile.frontend  estende a imagem oficial e injeta o nginx.conf corrigido
 ├── nginx.conf           override pro nginx do frontend (resolver Docker + service-names atuais)
 ├── .env.example         template de envs
 └── README.md            este arquivo
