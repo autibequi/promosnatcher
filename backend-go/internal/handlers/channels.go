@@ -466,7 +466,7 @@ func (h *ChannelsHandler) SendDigest(w http.ResponseWriter, r *http.Request) {
 		}
 		// Usa short link se configurado, senão affiliate direto
 		shortID := h.store.GetShortIDByURL(rawURL)
-		finalURL := buildProductURL(rawURL, source, shortID, publicURL, appCfg)
+		finalURL := buildProductURL(rawURL, source, shortID, publicURL, appCfg, h.store)
 		sb.WriteString(fmt.Sprintf("%d. *%s*\n💰 R$ %.2f\n🔗 %s\n\n", i+1, p.CanonicalName, price, finalURL))
 	}
 	msg := sb.String()
@@ -535,7 +535,7 @@ func (h *ChannelsHandler) SendProduct(w http.ResponseWriter, r *http.Request) {
 		publicURL = "https://beta.autibequi.com"
 	}
 	shortID := h.store.GetShortIDByURL(rawURL)
-	finalURL := buildProductURL(rawURL, source, shortID, publicURL, cfg)
+	finalURL := buildProductURL(rawURL, source, shortID, publicURL, cfg, h.store)
 	msg := strings.NewReplacer(
 		"{title}", p.CanonicalName,
 		"{price:.2f}", fmt.Sprintf("%.2f", price),
@@ -568,30 +568,36 @@ func (h *ChannelsHandler) SendProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildProductURL retorna URL com short link ou affiliate direto.
-func buildProductURL(rawURL, source, shortID, publicBaseURL string, cfg models.AppConfig) string {
+func buildProductURL(rawURL, source, shortID, publicBaseURL string, cfg models.AppConfig, st store.Store) string {
 	if cfg.UseShortLinks && shortID != "" && publicBaseURL != "" {
 		return publicBaseURL + "/v/" + shortID
 	}
-	return applyAffiliateURL(rawURL, source, cfg)
+	return applyAffiliateURL(rawURL, source, st)
 }
 
 // applyAffiliateURL adiciona parâmetros de afiliado na URL baseado no source.
-func applyAffiliateURL(rawURL, source string, cfg models.AppConfig) string {
+func applyAffiliateURL(rawURL, source string, st store.Store) string {
+	if st == nil {
+		return rawURL
+	}
+
 	switch source {
 	case "amazon":
-		if cfg.AmzTrackingID.Valid && cfg.AmzTrackingID.String != "" {
+		aff, found, _ := st.GetAffiliateBySource("amz")
+		if found && aff.TrackingID != "" {
 			if strings.Contains(rawURL, "?") {
-				return rawURL + "&tag=" + cfg.AmzTrackingID.String
+				return rawURL + "&tag=" + aff.TrackingID
 			}
-			return rawURL + "?tag=" + cfg.AmzTrackingID.String
+			return rawURL + "?tag=" + aff.TrackingID
 		}
 	case "mercadolivre":
-		if cfg.MLAffiliateToolID.Valid && cfg.MLAffiliateToolID.String != "" {
+		aff, found, _ := st.GetAffiliateBySource("ml")
+		if found && aff.TrackingID != "" {
 			sep := "?"
 			if strings.Contains(rawURL, "?") {
 				sep = "&"
 			}
-			return rawURL + sep + "matt_tool=" + cfg.MLAffiliateToolID.String + "&matt_source=affiliate"
+			return rawURL + sep + "matt_tool=" + aff.TrackingID + "&matt_source=affiliate"
 		}
 	}
 	return rawURL

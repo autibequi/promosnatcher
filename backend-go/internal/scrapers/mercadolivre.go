@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -223,15 +224,8 @@ func (s *mercadoLivreScraper) Category() string {
 // Search implements the Scraper interface, returning models.CrawlResult.
 // It delegates to the legacy pipeline-based search logic.
 func (s *mercadoLivreScraper) Search(ctx context.Context, query string, minVal, maxVal float64) ([]models.CrawlResult, error) {
-	// Convert to legacy MLScraper for search
-	legacyScraper := &MLScraper{
-		client:       s.client,
-		clientID:     s.clientID,
-		clientSecret: s.clientSecret,
-		token:        s.token,
-		tokenExpiry:  s.tokenExpiry,
-		tokenMu:      s.tokenMu,
-	}
+	// Use a fresh MLScraper instance for each search (sync.Mutex cannot be copied)
+	legacyScraper := NewMLScraper(s.clientID, s.clientSecret)
 
 	items, err := legacyScraper.Search(ctx, query, minVal, maxVal)
 	if err != nil {
@@ -242,20 +236,30 @@ func (s *mercadoLivreScraper) Search(ctx context.Context, query string, minVal, 
 	results := make([]models.CrawlResult, len(items))
 	for i, item := range items {
 		results[i] = models.CrawlResult{
-			Title:    item.Title,
-			Price:    item.Price,
-			URL:      item.URL,
-			ImageURL: models.NullString{String: item.ImageURL, Valid: item.ImageURL != ""},
-			Source:   item.Source,
+			Title:     item.Title,
+			Price:     item.Price,
+			URL:       item.URL,
+			ImageURL:  nullableString(item.ImageURL),
+			Source:    item.Source,
 			CrawledAt: time.Now(),
 		}
 	}
 	return results, nil
 }
 
+// nullableString converts a string to a models.NullString.
+func nullableString(s string) models.NullString {
+	return models.NullString{
+		NullString: sql.NullString{String: s, Valid: s != ""},
+	}
+}
+
 // init registers the mercadoLivreScraper in the global registry.
 func init() {
+	// Empty clientID/clientSecret will trigger HTML fallback in the legacy scraper.
 	Register(&mercadoLivreScraper{
-		client: &http.Client{Timeout: 20 * time.Second},
+		client:       &http.Client{Timeout: 20 * time.Second},
+		clientID:     "", // Will be populated from AppConfig at runtime
+		clientSecret: "",
 	})
 }

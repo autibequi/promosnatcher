@@ -29,6 +29,14 @@ type Store interface {
 	DeleteSearchTerm(id int64) error
 	TouchSearchTerm(id int64, count int) error
 
+	// Affiliates
+	ListAffiliates(sourceID *string) ([]models.Affiliate, error)
+	GetAffiliate(id int64) (models.Affiliate, error)
+	CreateAffiliate(a models.Affiliate) (int64, error)
+	UpdateAffiliate(a models.Affiliate) error
+	DeleteAffiliate(id int64) error
+	GetAffiliateBySource(sourceID string) (models.Affiliate, bool, error)
+
 	// CrawlResults
 	InsertCrawlResult(r models.CrawlResult) (int64, error)
 	ListUnprocessedCrawlResults() ([]models.CrawlResult, error)
@@ -51,12 +59,14 @@ type Store interface {
 	DeleteCatalogProduct(id int64) error
 	GetVariantByURL(url string) (models.CatalogVariant, bool, error)
 	GetVariantByShortID(shortID string) (models.CatalogVariant, bool, error)
+	GetCatalogVariant(id int64) (models.CatalogVariant, error)
 	GetShortIDByURL(url string) string
 	CreateCatalogVariant(v models.CatalogVariant) (int64, error)
 	UpdateCatalogVariant(v models.CatalogVariant) error
 	ListVariantsByProduct(productID int64) ([]models.CatalogVariant, error)
 	InsertPriceHistoryV2(h models.PriceHistoryV2) error
 	ListPriceHistoryV2(variantID int64) ([]models.PriceHistoryV2, error)
+	GetVariantStats(variantID int64, windowDays int) (*models.VariantStats, error)
 	ListGroupingKeywords() ([]models.GroupingKeyword, error)
 	CreateGroupingKeyword(k models.GroupingKeyword) (int64, error)
 	UpdateGroupingKeyword(k models.GroupingKeyword) error
@@ -71,6 +81,8 @@ type Store interface {
 	UpdateChannel(c models.Channel) error
 	DeleteChannel(id int64) error
 	ListChannelTargets(channelID int64) ([]models.ChannelTarget, error)
+	GetChannelTarget(id int64) (models.ChannelTarget, error)
+	ListAllChannelTargets() ([]models.ChannelTarget, error)
 	CreateChannelTarget(t models.ChannelTarget) (int64, error)
 	UpdateChannelTarget(t models.ChannelTarget) error
 	DeleteChannelTarget(id int64) error
@@ -102,4 +114,8 @@ type Store interface {
 
 	// Analytics
 	GetAnalyticsSummary(since time.Time, days int) (map[string]any, error)
+
+	// Coverage (multi-WA)
+	ListAccountsForTarget(targetID int64) ([]models.ChannelTargetAccount, error)
+	GetAccountsByTargetWithRole(targetID int64, role string) ([]models.ChannelTargetAccount, error)
 }

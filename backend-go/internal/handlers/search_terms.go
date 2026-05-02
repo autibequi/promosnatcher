@@ -13,15 +13,14 @@ import (
 
 // searchTermRequest aceita queries como array (como o frontend envia).
 type searchTermRequest struct {
-	Query             string   `json:"query"              validate:"required,min=2"`
-	Queries           []string `json:"queries"`
-	MinVal            float64  `json:"min_val"            validate:"gte=0"`
-	MaxVal            float64  `json:"max_val"            validate:"gte=0"`
-	Sources           string   `json:"sources"`
-	Active            *bool    `json:"active"`
-	CrawlInterval     int      `json:"crawl_interval"`
-	MLAffiliateToolID string   `json:"ml_affiliate_tool_id"`
-	AmzTrackingID     string   `json:"amz_tracking_id"`
+	Query         string   `json:"query"              validate:"required,min=2"`
+	Queries       []string `json:"queries"`
+	MinVal        float64  `json:"min_val"            validate:"gte=0"`
+	MaxVal        float64  `json:"max_val"            validate:"gte=0"`
+	Sources       string   `json:"sources"`
+	Category      string   `json:"category"           validate:"omitempty,oneof=ecommerce cdkey"`
+	Active        *bool    `json:"active"`
+	CrawlInterval int      `json:"crawl_interval"`
 }
 
 func (req searchTermRequest) toModel() models.SearchTerm {
@@ -32,6 +31,7 @@ func (req searchTermRequest) toModel() models.SearchTerm {
 		MinVal:        req.MinVal,
 		MaxVal:        req.MaxVal,
 		Sources:       req.Sources,
+		Category:      req.Category,
 		CrawlInterval: req.CrawlInterval,
 	}
 	if t.Queries == "" || t.Queries == "null" {
@@ -40,6 +40,9 @@ func (req searchTermRequest) toModel() models.SearchTerm {
 	if t.Sources == "" {
 		t.Sources = "all"
 	}
+	if t.Category == "" {
+		t.Category = "ecommerce"
+	}
 	if t.CrawlInterval == 0 {
 		t.CrawlInterval = 30
 	}
@@ -47,12 +50,6 @@ func (req searchTermRequest) toModel() models.SearchTerm {
 		t.Active = *req.Active
 	} else {
 		t.Active = true
-	}
-	if req.MLAffiliateToolID != "" {
-		t.MLAffiliateToolID = models.NullString{NullString: sqlNullString(req.MLAffiliateToolID)}
-	}
-	if req.AmzTrackingID != "" {
-		t.AmzTrackingID = models.NullString{NullString: sqlNullString(req.AmzTrackingID)}
 	}
 	return t
 }

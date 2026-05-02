@@ -133,8 +133,8 @@ func (s *SQLStore) GetSearchTerm(id int64) (models.SearchTerm, error) {
 
 func (s *SQLStore) CreateSearchTerm(t models.SearchTerm) (int64, error) {
 	res, err := s.db.NamedExec(`
-		INSERT INTO searchterm (query, queries, min_val, max_val, sources, active, crawl_interval, ml_affiliate_tool_id, amz_tracking_id)
-		VALUES (:query, :queries, :min_val, :max_val, :sources, :active, :crawl_interval, :ml_affiliate_tool_id, :amz_tracking_id)`, t)
+		INSERT INTO searchterm (query, queries, min_val, max_val, sources, category, active, crawl_interval, ml_affiliate_tool_id, amz_tracking_id)
+		VALUES (:query, :queries, :min_val, :max_val, :sources, :category, :active, :crawl_interval, :ml_affiliate_tool_id, :amz_tracking_id)`, t)
 	if err != nil {
 		return 0, err
 	}
@@ -144,7 +144,7 @@ func (s *SQLStore) CreateSearchTerm(t models.SearchTerm) (int64, error) {
 func (s *SQLStore) UpdateSearchTerm(t models.SearchTerm) error {
 	_, err := s.db.NamedExec(`
 		UPDATE searchterm SET query=:query, queries=:queries, min_val=:min_val, max_val=:max_val,
-			sources=:sources, active=:active, crawl_interval=:crawl_interval,
+			sources=:sources, category=:category, active=:active, crawl_interval=:crawl_interval,
 			ml_affiliate_tool_id=:ml_affiliate_tool_id, amz_tracking_id=:amz_tracking_id
 		WHERE id = :id`, t)
 	return err
@@ -168,8 +168,8 @@ func (s *SQLStore) TouchSearchTerm(id int64, count int) error {
 
 func (s *SQLStore) InsertCrawlResult(r models.CrawlResult) (int64, error) {
 	res, err := s.db.NamedExec(`
-		INSERT INTO crawlresult (search_term_id, title, price, url, image_url, source)
-		VALUES (:search_term_id, :title, :price, :url, :image_url, :source)`, r)
+		INSERT INTO crawlresult (search_term_id, title, price, url, image_url, source, source_subid)
+		VALUES (:search_term_id, :title, :price, :url, :image_url, :source, :source_subid)`, r)
 	if err != nil {
 		return 0, err
 	}
@@ -337,6 +337,12 @@ func (s *SQLStore) GetVariantByShortID(shortID string) (models.CatalogVariant, b
 	return v, err == nil, err
 }
 
+func (s *SQLStore) GetCatalogVariant(id int64) (models.CatalogVariant, error) {
+	var v models.CatalogVariant
+	err := s.db.Get(&v, `SELECT * FROM catalogvariant WHERE id = ? LIMIT 1`, id)
+	return v, err
+}
+
 func genShortID() string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	raw := make([]byte, 7)
@@ -374,6 +380,168 @@ func (s *SQLStore) ListPriceHistoryV2(variantID int64) ([]models.PriceHistoryV2,
 	err := s.db.Select(&out,
 		`SELECT * FROM pricehistoryv2 WHERE variant_id = ? ORDER BY recorded_at DESC LIMIT 100`, variantID)
 	return out, err
+}
+
+// GetVariantStats calculates price statistics (percentiles, mean, score) for a variant over a time window.
+// Returns nil if variant has no prices in the window.
+func (s *SQLStore) GetVariantStats(variantID int64, windowDays int) (*models.VariantStats, error) {
+	// Get current price (most recent)
+	var currentPrice sql.NullFloat64
+	var currentTime sql.NullTime
+	err := s.db.QueryRow(`
+		SELECT price, recorded_at
+		FROM pricehistoryv2
+		WHERE variant_id = $1
+		ORDER BY recorded_at DESC
+		LIMIT 1
+	`, variantID).Scan(&currentPrice, &currentTime)
+
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	if err == sql.ErrNoRows || !currentPrice.Valid {
+		return nil, nil // No data for this variant
+	}
+
+	// Build window filter
+	windowSQL := fmt.Sprintf("AND recorded_at >= NOW() - INTERVAL '%d days'", windowDays)
+
+	// Fetch all prices in window for manual percentile calculation (supports both SQLite and Postgres)
+	var prices []float64
+	rows, err := s.db.Query(`
+		SELECT price
+		FROM pricehistoryv2
+		WHERE variant_id = $1 `+windowSQL+`
+		ORDER BY price ASC
+	`, variantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p float64
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		prices = append(prices, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Check if we have enough data
+	if len(prices) == 0 {
+		return nil, nil
+	}
+
+	// Apply IQR cleanup (remove outliers)
+	cleanedPrices := applyIQRCleanup(prices)
+
+	// If after cleanup we don't have enough data, return null score
+	if len(cleanedPrices) < 5 {
+		window := fmt.Sprintf("%dd", windowDays)
+		reason := "insufficient_data"
+		return &models.VariantStats{
+			Count:  len(prices),
+			Window: window,
+			Score:  nil,
+			Reason: &reason,
+		}, nil
+	}
+
+	// Calculate percentiles and mean from cleaned data
+	p25 := percentile(cleanedPrices, 0.25)
+	p50 := percentile(cleanedPrices, 0.50)
+	p75 := percentile(cleanedPrices, 0.75)
+	mean := calculateMean(cleanedPrices)
+
+	// Calculate score
+	var score *float64
+	var reason *string
+	if p75 == p25 {
+		// No variance
+		noVar := "no_variance"
+		reason = &noVar
+		score = nil
+	} else {
+		// score = clamp((p75 - current) / (p75 - p25), 0, 1)
+		s := (p75 - currentPrice.Float64) / (p75 - p25)
+		if s < 0 {
+			s = 0
+		} else if s > 1 {
+			s = 1
+		}
+		score = &s
+	}
+
+	window := fmt.Sprintf("%dd", windowDays)
+	return &models.VariantStats{
+		P25:    p25,
+		P50:    p50,
+		P75:    p75,
+		Mean:   mean,
+		Current: currentPrice.Float64,
+		Score:  score,
+		Count:  len(cleanedPrices),
+		Window: window,
+		Reason: reason,
+	}, nil
+}
+
+// Helper: apply IQR cleanup to remove outliers
+func applyIQRCleanup(prices []float64) []float64 {
+	if len(prices) < 5 {
+		return prices
+	}
+
+	q1 := percentile(prices, 0.25)
+	q3 := percentile(prices, 0.75)
+	iqr := q3 - q1
+
+	lower := q1 - 1.5*iqr
+	upper := q3 + 1.5*iqr
+
+	var cleaned []float64
+	for _, p := range prices {
+		if p >= lower && p <= upper {
+			cleaned = append(cleaned, p)
+		}
+	}
+	return cleaned
+}
+
+// Helper: calculate percentile (assumes sorted array)
+func percentile(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	if len(sorted) == 1 {
+		return sorted[0]
+	}
+
+	idx := p * float64(len(sorted)-1)
+	lower := int(idx)
+	upper := lower + 1
+	weight := idx - float64(lower)
+
+	if upper >= len(sorted) {
+		return sorted[lower]
+	}
+
+	return sorted[lower]*(1-weight) + sorted[upper]*weight
+}
+
+// Helper: calculate mean
+func calculateMean(prices []float64) float64 {
+	if len(prices) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, p := range prices {
+		sum += p
+	}
+	return sum / float64(len(prices))
 }
 
 func (s *SQLStore) ListGroupingKeywords() ([]models.GroupingKeyword, error) {
@@ -485,6 +653,20 @@ func (s *SQLStore) UpdateChannelTarget(t models.ChannelTarget) error {
 func (s *SQLStore) DeleteChannelTarget(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM channeltarget WHERE id = ?`, id)
 	return err
+}
+
+// GetChannelTarget retorna um target específico pelo ID.
+func (s *SQLStore) GetChannelTarget(id int64) (models.ChannelTarget, error) {
+	var t models.ChannelTarget
+	err := s.db.Get(&t, `SELECT * FROM channeltarget WHERE id = ?`, id)
+	return t, err
+}
+
+// ListAllChannelTargets retorna TODOS os channel targets (sem filtro de channel_id).
+func (s *SQLStore) ListAllChannelTargets() ([]models.ChannelTarget, error) {
+	var out []models.ChannelTarget
+	err := s.db.Select(&out, `SELECT * FROM channeltarget ORDER BY id`)
+	return out, err
 }
 
 func (s *SQLStore) ListChannelRules(channelID int64) ([]models.ChannelRule, error) {
@@ -711,4 +893,137 @@ func ValidSlug(slug string) error {
 		}
 	}
 	return nil
+}
+
+// ─────────────────── Affiliates ──────────────────────
+
+// ListAffiliates retorna todos os afiliados, opcionalmente filtrados por source_id.
+func (s *SQLStore) ListAffiliates(sourceID *string) ([]models.Affiliate, error) {
+	var query string
+	var args []interface{}
+
+	if sourceID != nil && *sourceID != "" {
+		query = `SELECT id, source_id, name, tracking_id, active, created_at FROM affiliates WHERE source_id = ? ORDER BY created_at DESC`
+		args = []interface{}{*sourceID}
+	} else {
+		query = `SELECT id, source_id, name, tracking_id, active, created_at FROM affiliates ORDER BY created_at DESC`
+	}
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var affiliates []models.Affiliate
+	for rows.Next() {
+		var a models.Affiliate
+		if err := rows.Scan(&a.ID, &a.SourceID, &a.Name, &a.TrackingID, &a.Active, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		affiliates = append(affiliates, a)
+	}
+	return affiliates, nil
+}
+
+// GetAffiliate retorna um afiliado por ID.
+func (s *SQLStore) GetAffiliate(id int64) (models.Affiliate, error) {
+	var a models.Affiliate
+	err := s.db.QueryRow(
+		`SELECT id, source_id, name, tracking_id, active, created_at FROM affiliates WHERE id = ?`,
+		id,
+	).Scan(&a.ID, &a.SourceID, &a.Name, &a.TrackingID, &a.Active, &a.CreatedAt)
+	return a, err
+}
+
+// CreateAffiliate cria um novo afiliado.
+func (s *SQLStore) CreateAffiliate(a models.Affiliate) (int64, error) {
+	active := 0
+	if a.Active {
+		active = 1
+	}
+	result, err := s.db.Exec(
+		`INSERT INTO affiliates (source_id, name, tracking_id, active) VALUES (?, ?, ?, ?)`,
+		a.SourceID, a.Name, a.TrackingID, active,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+// UpdateAffiliate atualiza um afiliado existente.
+func (s *SQLStore) UpdateAffiliate(a models.Affiliate) error {
+	active := 0
+	if a.Active {
+		active = 1
+	}
+	_, err := s.db.Exec(
+		`UPDATE affiliates SET source_id = ?, name = ?, tracking_id = ?, active = ? WHERE id = ?`,
+		a.SourceID, a.Name, a.TrackingID, active, a.ID,
+	)
+	return err
+}
+
+// DeleteAffiliate deleta um afiliado.
+func (s *SQLStore) DeleteAffiliate(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM affiliates WHERE id = ?`, id)
+	return err
+}
+
+// GetAffiliateBySource retorna o afiliado ativo para um source_id específico.
+func (s *SQLStore) GetAffiliateBySource(sourceID string) (models.Affiliate, bool, error) {
+	var a models.Affiliate
+	err := s.db.QueryRow(
+		`SELECT id, source_id, name, tracking_id, active, created_at FROM affiliates WHERE source_id = ? AND active = 1 LIMIT 1`,
+		sourceID,
+	).Scan(&a.ID, &a.SourceID, &a.Name, &a.TrackingID, &a.Active, &a.CreatedAt)
+	if err == sql.ErrNoRows {
+		return a, false, nil
+	}
+	return a, err == nil, err
+}
+
+// ListAccountsForTarget retorna todas as contas associadas a um target, ordenadas por priority.
+func (s *SQLStore) ListAccountsForTarget(targetID int64) ([]models.ChannelTargetAccount, error) {
+	rows, err := s.db.Query(
+		`SELECT id, target_id, account_id, role, priority, created_at FROM channel_target_accounts WHERE target_id = ? ORDER BY priority ASC`,
+		targetID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []models.ChannelTargetAccount
+	for rows.Next() {
+		var cta models.ChannelTargetAccount
+		if err := rows.Scan(&cta.ID, &cta.TargetID, &cta.AccountID, &cta.Role, &cta.Priority, &cta.CreatedAt); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, cta)
+	}
+	return accounts, rows.Err()
+}
+
+// GetAccountsByTargetWithRole retorna contas com um role específico para um target.
+func (s *SQLStore) GetAccountsByTargetWithRole(targetID int64, role string) ([]models.ChannelTargetAccount, error) {
+	rows, err := s.db.Query(
+		`SELECT id, target_id, account_id, role, priority, created_at FROM channel_target_accounts WHERE target_id = ? AND role = ? ORDER BY priority ASC`,
+		targetID, role,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []models.ChannelTargetAccount
+	for rows.Next() {
+		var cta models.ChannelTargetAccount
+		if err := rows.Scan(&cta.ID, &cta.TargetID, &cta.AccountID, &cta.Role, &cta.Priority, &cta.CreatedAt); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, cta)
+	}
+	return accounts, rows.Err()
 }

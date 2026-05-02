@@ -1,9 +1,29 @@
 package models
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 )
+
+// Source represents a marketplace data source (e.g., Mercado Livre, Amazon).
+type Source struct {
+	ID         string      `db:"id" json:"id"`
+	Name       string      `db:"name" json:"name"`
+	Category   string      `db:"category" json:"category"`
+	Enabled    bool        `db:"enabled" json:"enabled"`
+	ConfigJSON NullString  `db:"config_json" json:"config_json,omitempty"`
+}
+
+// Affiliate represents affiliate tracking information for a source.
+type Affiliate struct {
+	ID         int64     `db:"id" json:"id"`
+	SourceID   string    `db:"source_id" json:"source_id"`
+	Name       string    `db:"name" json:"name"`
+	TrackingID string    `db:"tracking_id" json:"tracking_id"`
+	Active     bool      `db:"active" json:"active"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
 
 type Group struct {
 	ID              int64          `db:"id" json:"id"`
@@ -57,26 +77,24 @@ type ScanJob struct {
 }
 
 type AppConfig struct {
-	ID                int            `db:"id" json:"id"`
-	WAProvider        string         `db:"wa_provider" json:"wa_provider"`
-	WABaseURL         NullString `db:"wa_base_url" json:"wa_base_url,omitempty"`
-	WAApiKey          NullString `db:"wa_api_key" json:"wa_api_key,omitempty"`
-	WAInstance        NullString `db:"wa_instance" json:"wa_instance,omitempty"`
-	GlobalInterval    int            `db:"global_interval" json:"global_interval"`
-	SendStartHour     int            `db:"send_start_hour" json:"send_start_hour"`
-	SendEndHour       int            `db:"send_end_hour" json:"send_end_hour"`
-	MLClientID        NullString `db:"ml_client_id" json:"ml_client_id,omitempty"`
-	MLClientSecret    NullString `db:"ml_client_secret" json:"ml_client_secret,omitempty"`
-	WAGroupPrefix     NullString `db:"wa_group_prefix" json:"wa_group_prefix,omitempty"`
-	AmzTrackingID     NullString `db:"amz_tracking_id" json:"amz_tracking_id,omitempty"`
-	MLAffiliateToolID NullString `db:"ml_affiliate_tool_id" json:"ml_affiliate_tool_id,omitempty"`
-	AlertPhone        NullString `db:"alert_phone" json:"alert_phone,omitempty"`
-	UseShortLinks     bool           `db:"use_short_links" json:"use_short_links"`
-	TGEnabled         bool           `db:"tg_enabled" json:"tg_enabled"`
-	TGBotToken        NullString `db:"tg_bot_token" json:"tg_bot_token,omitempty"`
-	TGBotUsername     NullString `db:"tg_bot_username" json:"tg_bot_username,omitempty"`
-	TGGroupPrefix     NullString `db:"tg_group_prefix" json:"tg_group_prefix,omitempty"`
-	TGLastUpdateID    NullInt64  `db:"tg_last_update_id" json:"tg_last_update_id,omitempty"`
+	ID             int        `db:"id" json:"id"`
+	WAProvider     string     `db:"wa_provider" json:"wa_provider"`
+	WABaseURL      NullString `db:"wa_base_url" json:"wa_base_url,omitempty"`
+	WAApiKey       NullString `db:"wa_api_key" json:"wa_api_key,omitempty"`
+	WAInstance     NullString `db:"wa_instance" json:"wa_instance,omitempty"`
+	GlobalInterval int        `db:"global_interval" json:"global_interval"`
+	SendStartHour  int        `db:"send_start_hour" json:"send_start_hour"`
+	SendEndHour    int        `db:"send_end_hour" json:"send_end_hour"`
+	MLClientID     NullString `db:"ml_client_id" json:"ml_client_id,omitempty"`
+	MLClientSecret NullString `db:"ml_client_secret" json:"ml_client_secret,omitempty"`
+	WAGroupPrefix  NullString `db:"wa_group_prefix" json:"wa_group_prefix,omitempty"`
+	AlertPhone     NullString `db:"alert_phone" json:"alert_phone,omitempty"`
+	UseShortLinks  bool       `db:"use_short_links" json:"use_short_links"`
+	TGEnabled      bool       `db:"tg_enabled" json:"tg_enabled"`
+	TGBotToken     NullString `db:"tg_bot_token" json:"tg_bot_token,omitempty"`
+	TGBotUsername  NullString `db:"tg_bot_username" json:"tg_bot_username,omitempty"`
+	TGGroupPrefix  NullString `db:"tg_group_prefix" json:"tg_group_prefix,omitempty"`
+	TGLastUpdateID NullInt64  `db:"tg_last_update_id" json:"tg_last_update_id,omitempty"`
 }
 
 type WAAccount struct {
@@ -104,19 +122,18 @@ type TGAccount struct {
 }
 
 type SearchTerm struct {
-	ID                int64          `db:"id" json:"id"`
-	Query             string         `db:"query" json:"query"`
-	Queries           string         `db:"queries" json:"queries"`
-	MinVal            float64        `db:"min_val" json:"min_val"`
-	MaxVal            float64        `db:"max_val" json:"max_val"`
-	Sources           string         `db:"sources" json:"sources"`
-	Active            bool           `db:"active" json:"active"`
-	CrawlInterval     int            `db:"crawl_interval" json:"crawl_interval"`
-	LastCrawledAt     NullTime   `db:"last_crawled_at" json:"last_crawled_at,omitempty"`
-	ResultCount       int            `db:"result_count" json:"result_count"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	MLAffiliateToolID NullString `db:"ml_affiliate_tool_id" json:"ml_affiliate_tool_id,omitempty"`
-	AmzTrackingID     NullString `db:"amz_tracking_id" json:"amz_tracking_id,omitempty"`
+	ID            int64     `db:"id" json:"id"`
+	Query         string    `db:"query" json:"query"`
+	Queries       string    `db:"queries" json:"queries"`
+	MinVal        float64   `db:"min_val" json:"min_val"`
+	MaxVal        float64   `db:"max_val" json:"max_val"`
+	Sources       string    `db:"sources" json:"sources"`
+	Category      string    `db:"category" json:"category"`
+	Active        bool      `db:"active" json:"active"`
+	CrawlInterval int       `db:"crawl_interval" json:"crawl_interval"`
+	LastCrawledAt NullTime  `db:"last_crawled_at" json:"last_crawled_at,omitempty"`
+	ResultCount   int       `db:"result_count" json:"result_count"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
 }
 
 func (s *SearchTerm) GetQueries() []string {
@@ -133,6 +150,32 @@ func (s *SearchTerm) GetQueries() []string {
 	return out
 }
 
+// GetSources returns the list of source IDs for this search term.
+// It parses the Sources field as JSON if possible, falling back to legacy ad-hoc values.
+func (s *SearchTerm) GetSources() []string {
+	// Try to parse as JSON array first
+	var sources []string
+	if err := json.Unmarshal([]byte(s.Sources), &sources); err == nil && len(sources) > 0 {
+		return sources
+	}
+
+	// Fallback to legacy ad-hoc values
+	switch s.Sources {
+	case "all":
+		return []string{"ml", "amz"}
+	case "mercadolivre":
+		return []string{"ml"}
+	case "amazon":
+		return []string{"amz"}
+	default:
+		// Return as-is if not recognized (for future extensibility)
+		if s.Sources != "" {
+			return []string{s.Sources}
+		}
+		return []string{}
+	}
+}
+
 type CrawlResult struct {
 	ID               int64          `db:"id" json:"id"`
 	SearchTermID     int64          `db:"search_term_id" json:"search_term_id"`
@@ -141,6 +184,7 @@ type CrawlResult struct {
 	URL              string         `db:"url" json:"url"`
 	ImageURL         NullString `db:"image_url" json:"image_url,omitempty"`
 	Source           string         `db:"source" json:"source"`
+	SourceSubID      NullString `db:"source_subid" json:"source_subid,omitempty"`
 	CrawledAt        time.Time      `db:"crawled_at" json:"crawled_at"`
 	CatalogVariantID NullInt64  `db:"catalog_variant_id" json:"catalog_variant_id,omitempty"`
 }
@@ -201,6 +245,18 @@ type PriceHistoryV2 struct {
 	RecordedAt time.Time `db:"recorded_at" json:"recorded_at"`
 }
 
+type VariantStats struct {
+	P25    float64 `json:"p25"`
+	P50    float64 `json:"p50"`
+	P75    float64 `json:"p75"`
+	Mean   float64 `json:"mean"`
+	Current float64 `json:"current"`
+	Score  *float64 `json:"score"` // null if insufficient data or no variance
+	Count  int     `json:"count"`
+	Window string  `json:"window"`
+	Reason *string `json:"reason,omitempty"` // reason score is null (e.g., "insufficient_data", "no_variance")
+}
+
 type GroupingKeyword struct {
 	ID      int64  `db:"id" json:"id"`
 	Keyword string `db:"keyword" json:"keyword"`
@@ -232,6 +288,15 @@ type ChannelTarget struct {
 	Status    string         `db:"status" json:"status"`
 }
 
+type ChannelTargetAccount struct {
+	ID        int64     `db:"id" json:"id"`
+	TargetID  int64     `db:"target_id" json:"target_id"`
+	AccountID int64     `db:"account_id" json:"account_id"`
+	Role      string    `db:"role" json:"role"` // 'primary' or 'fallback'
+	Priority  int       `db:"priority" json:"priority"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 type ChannelRule struct {
 	ID            int64           `db:"id" json:"id"`
 	ChannelID     int64           `db:"channel_id" json:"channel_id"`
@@ -254,14 +319,54 @@ type SentMessageV2 struct {
 }
 
 type CrawlLog struct {
-	ID           int64          `db:"id" json:"id"`
-	SearchTermID int64          `db:"search_term_id" json:"search_term_id"`
-	StartedAt    time.Time      `db:"started_at" json:"started_at"`
-	FinishedAt   NullTime   `db:"finished_at" json:"finished_at,omitempty"`
-	Status       string         `db:"status" json:"status"`
-	MLCount      int            `db:"ml_count" json:"ml_count"`
-	AmzCount     int            `db:"amz_count" json:"amz_count"`
-	ErrorMsg     NullString `db:"error_msg" json:"error_msg,omitempty"`
+	ID            int64          `db:"id" json:"id"`
+	SearchTermID  int64          `db:"search_term_id" json:"search_term_id"`
+	StartedAt     time.Time      `db:"started_at" json:"started_at"`
+	FinishedAt    NullTime   `db:"finished_at" json:"finished_at,omitempty"`
+	Status        string         `db:"status" json:"status"`
+	MLCount       int            `db:"ml_count" json:"ml_count"`
+	AmzCount      int            `db:"amz_count" json:"amz_count"`
+	SourceCounts  NullString `db:"source_counts" json:"source_counts,omitempty"`
+	ErrorMsg      NullString `db:"error_msg" json:"error_msg,omitempty"`
+}
+
+// GetSourceCounts parses the SourceCounts JSON and returns a map of source ID -> count.
+// Falls back to legacy ml_count/amz_count if SourceCounts is not set.
+func (cl *CrawlLog) GetSourceCounts() map[string]int {
+	result := make(map[string]int)
+
+	// Try to parse SourceCounts JSON if available
+	if cl.SourceCounts.Valid && cl.SourceCounts.String != "" {
+		var counts map[string]int
+		if err := json.Unmarshal([]byte(cl.SourceCounts.String), &counts); err == nil {
+			return counts
+		}
+	}
+
+	// Fallback to legacy columns
+	if cl.MLCount > 0 {
+		result["ml"] = cl.MLCount
+	}
+	if cl.AmzCount > 0 {
+		result["amz"] = cl.AmzCount
+	}
+
+	return result
+}
+
+// SetSourceCounts serializes a map of source ID -> count into JSON format.
+func (cl *CrawlLog) SetSourceCounts(counts map[string]int) error {
+	data, err := json.Marshal(counts)
+	if err != nil {
+		return err
+	}
+	cl.SourceCounts = NullString{
+		NullString: sql.NullString{
+			String: string(data),
+			Valid:  true,
+		},
+	}
+	return nil
 }
 
 type BroadcastMessage struct {

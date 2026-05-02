@@ -12,6 +12,7 @@ import (
 	"snatcher/backendv2/internal/redirect"
 	"snatcher/backendv2/internal/scheduler"
 	"snatcher/backendv2/internal/store"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -44,6 +45,8 @@ func Build(
 	auth := handlers.NewAuth(adminUser, adminPass, jwtSecret)
 	scan := handlers.NewScan(st, runner, sched)
 	terms := handlers.NewSearchTerms(st, scrapers)
+	sources := handlers.NewSources(st)
+	affiliates := handlers.NewAffiliates(st)
 	catalog := handlers.NewCatalog(st)
 	channels := handlers.NewChannels(st, adapters)
 	config := handlers.NewConfig(st)
@@ -52,6 +55,7 @@ func Build(
 	crawlLogs := handlers.NewCrawlLogs(st)
 	broadcast := handlers.NewBroadcast(st)
 	analytics := handlers.NewAnalytics(st)
+	coverage := handlers.NewCoverageHandler(st)
 
 	// ---------------------------------------------------------------------------
 	// Rota de métricas (pública — antes do grupo JWT)
@@ -89,16 +93,22 @@ func Build(
 			return
 		}
 		// Affiliate URL
-		cfg, _ := st.GetConfig()
 		finalURL := v.URL
-		if cfg.AmzTrackingID.Valid && cfg.AmzTrackingID.String != "" && v.Source == "amazon" {
-			finalURL = v.URL + "?tag=" + cfg.AmzTrackingID.String
-		} else if cfg.MLAffiliateToolID.Valid && cfg.MLAffiliateToolID.String != "" && v.Source == "mercadolivre" {
-			sep := "?"
-			if len(v.URL) > 0 {
-				sep = "&"
+		switch v.Source {
+		case "amazon":
+			aff, found, _ := st.GetAffiliateBySource("amz")
+			if found && aff.TrackingID != "" {
+				finalURL = v.URL + "?tag=" + aff.TrackingID
 			}
-			finalURL = v.URL + sep + "matt_tool=" + cfg.MLAffiliateToolID.String + "&matt_source=affiliate"
+		case "mercadolivre":
+			aff, found, _ := st.GetAffiliateBySource("ml")
+			if found && aff.TrackingID != "" {
+				sep := "?"
+				if strings.Contains(v.URL, "?") {
+					sep = "&"
+				}
+				finalURL = v.URL + sep + "matt_tool=" + aff.TrackingID + "&matt_source=affiliate"
+			}
 		}
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		http.Redirect(w, r, finalURL, http.StatusFound)
@@ -150,6 +160,21 @@ func Build(
 		r.Post("/api/scan/pipeline", scan.TriggerPipeline)
 		r.Post("/api/scan/process", scan.TriggerProcess)
 
+		// Sources
+		r.Get("/api/sources", sources.List)
+		r.Get("/api/sources/", sources.List)
+		r.Get("/api/sources/{id}", sources.Get)
+		r.Patch("/api/sources/{id}", sources.Update)
+
+		// Affiliates
+		r.Get("/api/affiliates", affiliates.List)
+		r.Get("/api/affiliates/", affiliates.List)
+		r.Get("/api/affiliates/{id}", affiliates.Get)
+		r.Post("/api/affiliates", affiliates.Create)
+		r.Post("/api/affiliates/", affiliates.Create)
+		r.Put("/api/affiliates/{id}", affiliates.Update)
+		r.Delete("/api/affiliates/{id}", affiliates.Delete)
+
 		// Search Terms (com e sem trailing slash)
 		r.Get("/api/search-terms", terms.List)
 		r.Get("/api/search-terms/", terms.List)
@@ -167,6 +192,7 @@ func Build(
 		r.Get("/api/catalog/{id}", catalog.Get)
 		r.Put("/api/catalog/{id}", catalog.Update)
 		r.Delete("/api/catalog/{id}", catalog.Delete)
+		r.Get("/api/catalog/variants/{id}/stats", catalog.VariantStats)
 		r.Get("/api/catalog/variants/{variant_id}/history", catalog.ListVariantHistory)
 		r.Get("/api/catalog/keywords", catalog.ListKeywords)
 		r.Get("/api/catalog/keywords/", catalog.ListKeywords)
@@ -221,6 +247,10 @@ func Build(
 
 		// Analytics
 		r.Get("/api/analytics/summary", analytics.Summary)
+
+		// Coverage (multi-WA)
+		r.Get("/api/coverage", coverage.GetCoverage)
+		r.Post("/api/coverage/sync", coverage.PostCoverageSync)
 
 		// Telegram chats discovery (dois paths — o frontend usa /api/config/tg/chats)
 		r.Get("/api/telegram/chats", accounts.ListTGChats)

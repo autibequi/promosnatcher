@@ -147,3 +147,74 @@ func (h *CatalogHandler) ListKeywords(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, kws)
 }
+
+// VariantStats retorna estatísticas de preço (percentis, média, score) para uma variante.
+//
+//	@Summary      Estatísticas de preço da variante
+//	@Description  Retorna percentis (p25, p50, p75), média, preço atual e score de um variante em uma janela de tempo.
+//	@Tags         catalog
+//	@Produce      json
+//	@Param        id       path      int     true  "ID da variante"
+//	@Param        window   query     string  false "Janela de tempo (7d, 30d, 60d, 90d; default 90d)"
+//	@Success      200      {object}  models.VariantStats
+//	@Failure      400      {object}  object{error=string}
+//	@Failure      404      {object}  object{error=string}
+//	@Failure      500      {object}  object{error=string}
+//	@Security     BearerAuth
+//	@Router       /api/catalog/variants/{id}/stats [get]
+func (h *CatalogHandler) VariantStats(w http.ResponseWriter, r *http.Request) {
+	variantID, ok := pathInt(r, "id")
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "invalid variant id")
+		return
+	}
+
+	// Parse window parameter
+	window := r.URL.Query().Get("window")
+	if window == "" {
+		window = "90d"
+	}
+
+	// Validate window
+	windowDays := 0
+	switch window {
+	case "7d":
+		windowDays = 7
+	case "30d":
+		windowDays = 30
+	case "60d":
+		windowDays = 60
+	case "90d":
+		windowDays = 90
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid window; supported: 7d, 30d, 60d, 90d")
+		return
+	}
+
+	// Verify variant exists
+	variant, err := h.store.GetCatalogVariant(variantID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "variant not found")
+		return
+	}
+	_ = variant // silence unused warning
+
+	stats, err := h.store.GetVariantStats(variantID, windowDays)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if stats == nil {
+		// No price history for this variant
+		writeJSON(w, http.StatusOK, map[string]any{
+			"error":  "no_price_history",
+			"window": window,
+		})
+		return
+	}
+
+	// Set cache header: 10 minutes
+	w.Header().Set("Cache-Control", "public, max-age=600")
+	writeJSON(w, http.StatusOK, stats)
+}
