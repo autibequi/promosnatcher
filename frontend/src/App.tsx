@@ -51,6 +51,7 @@ const ChannelDetail = lazy(() => import('./pages/ChannelDetail'))
 const Groups = lazy(() => import('./pages/Groups'))
 const Logs = lazy(() => import('./pages/Logs'))
 const Broadcast = lazy(() => import('./pages/Broadcast'))
+const VariantDetail = lazy(() => import('./pages/VariantDetail'))
 
 interface AdminNavProps {
   onLogout: () => void
@@ -68,16 +69,30 @@ function AdminNav({ onLogout }: AdminNavProps): React.ReactElement {
 
   return (
     <nav className="border-b border-gray-800 bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-1.5 sm:gap-3 overflow-x-auto">
+      <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-4 overflow-x-auto">
         <NavLink to="/admin" end className="text-green-400 font-bold text-lg mr-1 sm:mr-3 flex-shrink-0">🔥</NavLink>
-        <NavLink to="/admin" end className={link}>Dashboard</NavLink>
-        <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
-        <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
-        <NavLink to="/admin/channels" className={link}>Canais</NavLink>
-        <NavLink to="/admin/broadcast" className={link}>Broadcast</NavLink>
-        <NavLink to="/admin/groups" className={link}>Grupos</NavLink>
-        <NavLink to="/admin/logs" className={link}>Logs</NavLink>
-        <NavLink to="/admin/settings" className={link}>Config</NavLink>
+
+        {/* Operacao group */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-600 font-medium">Operacao</span>
+          <NavLink to="/admin" end className={link}>Dashboard</NavLink>
+          <NavLink to="/admin/crawlers" className={link}>Crawlers</NavLink>
+          <NavLink to="/admin/catalog" className={link}>Catalogo</NavLink>
+          <NavLink to="/admin/channels" className={link}>Canais</NavLink>
+          <NavLink to="/admin/broadcast" className={link}>Broadcast</NavLink>
+        </div>
+
+        {/* Separator */}
+        <div className="h-6 w-px bg-gray-700"></div>
+
+        {/* Admin group */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-600 font-medium">Admin</span>
+          <NavLink to="/admin/settings" className={link}>Config</NavLink>
+          <NavLink to="/admin/groups" className={link}>Grupos</NavLink>
+          <NavLink to="/admin/logs" className={link}>Logs</NavLink>
+        </div>
+
         <button onClick={onLogout}
           className="ml-auto text-gray-500 hover:text-gray-300 text-sm px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors flex-shrink-0">
           Sair
@@ -163,6 +178,16 @@ export default function App() {
             <main className="max-w-6xl mx-auto px-4 py-8">
               <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
                 <Catalog />
+              </Suspense>
+            </main>
+          </RequireAuth>
+        } />
+        <Route path="/admin/catalog/variants/:id" element={
+          <RequireAuth>
+            <AdminNav onLogout={logout} />
+            <main className="max-w-6xl mx-auto px-4 py-8">
+              <Suspense fallback={<div className="text-gray-500 text-center py-16">Carregando...</div>}>
+                <VariantDetail />
               </Suspense>
             </main>
           </RequireAuth>

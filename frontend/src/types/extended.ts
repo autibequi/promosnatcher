@@ -42,6 +42,7 @@ export interface CrawlLog {
   ml_count?: number
   amz_count?: number
   error_msg?: string
+  source_counts?: Record<string, number>
 }
 
 export interface ChannelTarget {
@@ -82,4 +83,11 @@ export interface SearchTerm {
   crawl_interval?: number
   last_crawled_at?: string
   result_count?: number
+}
+
+export interface Source {
+  id: string
+  name: string
+  category: 'ecommerce' | 'cdkey'
+  enabled: boolean
 }

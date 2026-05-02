@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FC, FormEvent, ChangeEvent } from 'react'
+import { useState, useEffect, FC, FormEvent, ChangeEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query'
 import {
@@ -7,6 +7,7 @@ import {
   startWAAccountSession, logoutWAAccount, getWAAccountGroups, createWAAccountGroup, leaveWAAccountGroup,
   getTGAccounts, createTGAccount, updateTGAccount, deleteTGAccount, testTGAccount,
 } from '../api'
+import { CoverageMatrix } from '../components/CoverageMatrix'
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -292,7 +293,7 @@ const WAAccountCard: FC<WAAccountCardProps> = ({ account }) => {
         />
       )}
 
-      {((waStatus === 'STOPPED' || waStatus === 'ERROR' || waStatus === 'UNKNOWN' || !status) && (account.base_url || '')) && (
+      {(waStatus === 'STOPPED' || waStatus === 'ERROR' || waStatus === 'UNKNOWN' || !status) && account.base_url && (
         <div className="mb-3">
           <button onClick={() => startSession.mutate()} disabled={startSession.isPending}
             className="w-full bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm">
@@ -394,6 +395,8 @@ const Settings: FC = () => {
     queryFn: getConfig as () => Promise<ConfigData>,
   })
 
+  const [activeTab, setActiveTab] = useState<'geral' | 'afiliados' | 'cobertura'>('geral')
+
   const [form, setForm] = useState<SettingsForm>({
     global_interval: 30, send_start_hour: 8, send_end_hour: 22,
     ml_client_id: '', ml_client_secret: '',
@@ -470,6 +473,44 @@ const Settings: FC = () => {
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">Configuracoes</h1>
 
+      {/* Tab Navigation */}
+      <div className="flex gap-1 mb-6 border-b border-gray-700 pb-2">
+        <button
+          onClick={() => setActiveTab('geral')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            activeTab === 'geral'
+              ? 'bg-gray-800 text-green-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          Geral
+        </button>
+        <button
+          onClick={() => setActiveTab('afiliados')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            activeTab === 'afiliados'
+              ? 'bg-gray-800 text-green-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          Afiliados
+        </button>
+        <button
+          onClick={() => setActiveTab('cobertura')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            activeTab === 'cobertura'
+              ? 'bg-gray-800 text-green-400'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          Cobertura
+        </button>
+      </div>
+
+      {/* Tab: Geral */}
+      {activeTab === 'geral' && (
+      <>
+
       {/* WhatsApp Accounts */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
         <div className="flex items-center justify-between mb-4">
@@ -518,8 +559,11 @@ const Settings: FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {/* Settings Form */}
+      {/* Tab: Afiliados */}
+      {activeTab === 'afiliados' && (
       <form onSubmit={submit} className="space-y-5">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
           <h2 className="text-base font-semibold text-white">Mercado Livre API</h2>
@@ -593,6 +637,16 @@ const Settings: FC = () => {
           {save.isPending ? 'Salvando...' : 'Salvar configuracoes'}
         </button>
       </form>
+      )}
+
+      {/* Tab: Cobertura */}
+      {activeTab === 'cobertura' && (
+      <div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <CoverageMatrix />
+        </div>
+      </div>
+      )}
     </div>
   )
 }

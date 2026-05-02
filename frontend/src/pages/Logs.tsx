@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getCrawlLogs } from '../api'
 import type { CrawlLog } from '../types/extended'
+import { useEnabledSources } from '../hooks/useSources'
 
 const STATUS_BADGE: Record<string, string> = {
   done:    'bg-green-900 text-green-300',
@@ -25,6 +26,7 @@ function duration(start: string | undefined, end?: string | undefined): string {
 export default function Logs(): React.ReactElement {
   const [status, setStatus] = useState('')
   const [limit, setLimit] = useState(50)
+  const { data: enabledSources = [] } = useEnabledSources()
 
   const { data: logs = [], isLoading, refetch } = useQuery({
     queryKey: ['crawl-logs', status, limit],
@@ -90,17 +92,18 @@ export default function Logs(): React.ReactElement {
       ) : logs.length === 0 ? (
         <div className="text-gray-600 text-center py-16">Nenhum log encontrado</div>
       ) : (
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
+        <div className="bg-gray-800 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wide">
-                <th className="px-4 py-3 text-left">Term</th>
-                <th className="px-4 py-3 text-left">Início</th>
-                <th className="px-4 py-3 text-left">Duração</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-center">ML</th>
-                <th className="px-4 py-3 text-center">Amazon</th>
-                <th className="px-4 py-3 text-left">Erro</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Term</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Início</th>
+                <th className="px-4 py-3 text-left whitespace-nowrap">Duração</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">Status</th>
+                {enabledSources.map(source => (
+                  <th key={source.id} className="px-4 py-3 text-center whitespace-nowrap">{source.name}</th>
+                ))}
+                <th className="px-4 py-3 text-left whitespace-nowrap">Erro</th>
               </tr>
             </thead>
             <tbody>
@@ -110,14 +113,22 @@ export default function Logs(): React.ReactElement {
                     {log.search_term_query || ''}
                   </td>
                   <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{fmt(log.started_at)}</td>
-                  <td className="px-4 py-3 text-gray-400">{duration(log.started_at, log.finished_at)}</td>
+                  <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{duration(log.started_at, log.finished_at)}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[log.status] || 'bg-gray-700 text-gray-300'}`}>
                       {log.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-300">{log.ml_count || 0}</td>
-                  <td className="px-4 py-3 text-center text-gray-300">{log.amz_count || 0}</td>
+                  {enabledSources.map(source => {
+                    const count = log.source_counts?.[source.id] ?? (
+                      source.id === 'mercadolivre' ? log.ml_count : source.id === 'amazon' ? log.amz_count : 0
+                    )
+                    return (
+                      <td key={source.id} className="px-4 py-3 text-center text-gray-300 whitespace-nowrap">
+                        {count || 0}
+                      </td>
+                    )
+                  })}
                   <td className="px-4 py-3 text-red-400 text-xs max-w-[200px] truncate" title={log.error_msg || ''}>
                     {log.error_msg || ''}
                   </td>

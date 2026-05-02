@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { deleteProduct, sendProduct, getProductHistory } from '../api'
+import { SourceBadge } from './SourceBadge'
 
 interface Product {
   id: string
@@ -18,16 +19,6 @@ interface Product {
 interface PriceHistory {
   recorded_at: string
   price: number
-}
-
-interface SourceLabel {
-  label: string
-  color: string
-}
-
-const SOURCE_LABEL: Record<string, SourceLabel> = {
-  mercadolivre: { label: 'Mercado Livre', color: 'bg-yellow-800 text-yellow-200' },
-  amazon: { label: 'Amazon', color: 'bg-orange-900 text-orange-200' },
 }
 
 interface ProductCardProps {
@@ -55,8 +46,6 @@ export default function ProductCard({ product, showGroup = false }: ProductCardP
     enabled: showHistory,
   }) as { data: PriceHistory[], isLoading: boolean }
 
-  const src = SOURCE_LABEL[product.source] || { label: product.source, color: 'bg-gray-700 text-gray-300' }
-
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
       <div className="flex">
@@ -77,9 +66,7 @@ export default function ProductCard({ product, showGroup = false }: ProductCardP
                 </span>
               )}
             </div>
-            <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${src.color}`}>
-              {src.label}
-            </span>
+            <SourceBadge sourceId={product.source} size="sm" />
           </div>
 
           <div className="flex items-center gap-3">

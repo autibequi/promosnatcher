@@ -262,12 +262,25 @@ export const deleteTGAccount = (id: string): Promise<void> => api.delete(`/accou
 export const testTGAccount = (id: string): Promise<any> => api.post(`/accounts/tg/${id}/test`).then(r => r.data)
 
 // ────────────────────────────────────────────────────────────
+// Sources
+// ────────────────────────────────────────────────────────────
+
+export const getSources = (): Promise<any> => api.get('/sources').then(r => r.data)
+
+// ────────────────────────────────────────────────────────────
 // Broadcast
 // ────────────────────────────────────────────────────────────
 
 export const getBroadcasts = (): Promise<any> => api.get('/broadcast').then(r => r.data)
 export const sendBroadcast = (data: any): Promise<any> => api.post('/broadcast', data).then(r => r.data)
 export const deleteBroadcast = (id: string): Promise<void> => api.delete(`/broadcast/${id}`).then(r => r.data)
+
+// ────────────────────────────────────────────────────────────
+// Coverage (Fase 11)
+// ────────────────────────────────────────────────────────────
+
+export const getCoverage = (): Promise<any> => api.get('/coverage').then(r => r.data)
+export const postCoverageSync = (data: any): Promise<any> => api.post('/coverage/sync', data).then(r => r.data)
 
 // ────────────────────────────────────────────────────────────
 // Default export

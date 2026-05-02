@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCatalogProducts, getCatalogProduct, updateCatalogProduct, getVariantHistory, getKeywords, createKeyword, deleteKeyword } from '../api'
 import type { CatalogProduct, CatalogVariant } from '../types/extended'
+import { SourcePicker } from '../components/SourcePicker'
+import { PriceTrendBadge } from '../components/PriceTrendBadge'
 
 interface VariantHistory {
   id: string
@@ -44,8 +46,11 @@ function VariantRow({ variant }: VariantRowProps): React.ReactElement {
             })}
           </div>
         )}
-        <div className="text-right flex-shrink-0">
-          <span className="text-green-400 text-sm font-medium whitespace-nowrap">R$ {(variant.price ?? 0).toFixed(2).replace('.', ',')}</span>
+        <div className="text-right flex-shrink-0 space-y-1">
+          <div className="flex items-center gap-2 justify-end">
+            <span className="text-green-400 text-sm font-medium whitespace-nowrap">R$ {(variant.price ?? 0).toFixed(2).replace('.', ',')}</span>
+            {variant.id && <PriceTrendBadge variantId={Number(variant.id)} window="90d" />}
+          </div>
           {history.length > 1 && (
             <p className={`text-xs ${isAtMin ? 'text-green-400' : aboveMin > 20 ? 'text-red-400' : 'text-gray-500'}`}>
               {isAtMin ? 'menor preco!' : `+${aboveMin.toFixed(0)}% do min`}
@@ -134,7 +139,7 @@ export default function Catalog(): React.ReactElement {
   const [searchDebounced, setSearchDebounced] = useState('')
   const [tagFilter, setTagFilter] = useState('')
   const [brandFilter, setBrandFilter] = useState('')
-  const [sourceFilter, setSourceFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<string[]>([])
   const [page, setPage] = useState(0)
   const [showKeywords, setShowKeywords] = useState(false)
   const [newKw, setNewKw] = useState<NewKeywordForm>({ keyword: '', tag: '' })
@@ -153,7 +158,7 @@ export default function Catalog(): React.ReactElement {
     ...(searchDebounced && { search: searchDebounced }),
     ...(tagFilter && { tag: tagFilter }),
     ...(brandFilter && { brand: brandFilter }),
-    ...(sourceFilter && { source: sourceFilter }),
+    ...(sourceFilter.length > 0 && { source: sourceFilter.join(',') }),
   }
 
   const { data: pageData, isLoading } = useQuery({
@@ -228,10 +233,9 @@ export default function Catalog(): React.ReactElement {
           <input className={`${field} w-32`} placeholder="Tag" value={tagFilter} onChange={e => setTagFilter(e.target.value)} />
           <input className={`${field} w-32`} placeholder="Marca" value={brandFilter} onChange={e => setBrandFilter(e.target.value)} />
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setSourceFilter('')} className={`${btnBadge} ${!sourceFilter ? active : inactive}`}>Todos</button>
-          <button onClick={() => setSourceFilter('mercadolivre')} className={`${btnBadge} ${sourceFilter === 'mercadolivre' ? active : inactive}`}>ML</button>
-          <button onClick={() => setSourceFilter('amazon')} className={`${btnBadge} ${sourceFilter === 'amazon' ? active : inactive}`}>AMZ</button>
+        <div>
+          <label className="text-xs text-gray-400 block mb-2">Filtrar por Source</label>
+          <SourcePicker value={sourceFilter} onChange={setSourceFilter} />
         </div>
       </div>
 

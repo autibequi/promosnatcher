@@ -33,6 +33,7 @@ interface ChannelTarget {
   invite_url?: string
   name?: string
   status?: string
+  accounts?: Array<{ account_id: string; account_name?: string; role?: 'primary' | 'fallback'; priority?: number }>
 }
 
 interface ChannelRule {
@@ -336,6 +337,26 @@ const RedirectTab: FC<RedirectTabProps> = ({ channel, field }) => {
                     Salvar
                   </button>
                 </div>
+
+                {/* Contas vinculadas (Fase 11) */}
+                {t.accounts && t.accounts.length > 0 && (
+                <div className="bg-gray-900 rounded p-2 mt-2 space-y-1">
+                  <div className="text-xs font-semibold text-gray-400 mb-2">Contas vinculadas:</div>
+                  {t.accounts.map((acc, ai) => (
+                    <div key={ai} className="flex items-center gap-2 text-xs">
+                      <span className={`px-2 py-1 rounded text-white text-xs font-medium ${acc.role === 'primary' ? 'bg-green-900' : 'bg-yellow-900'}`}>
+                        {acc.account_name || acc.account_id}
+                      </span>
+                      <span className="text-gray-500 text-xs">
+                        {acc.role === 'primary' ? '⭐ Primary' : `🔄 Fallback (${acc.priority || 0})`}
+                      </span>
+                    </div>
+                  ))}
+                  <button className="text-xs text-blue-400 hover:text-blue-300 mt-2">
+                    Editar contas
+                  </button>
+                </div>
+                )}
               </div>
             )
           })}
